@@ -253,24 +253,24 @@ export function BOLDetail({ summary }: BOLDetailProps) {
                       </TableHeader>
                       <TableBody>
                         {ctr.items.map((item, idx) => (
-                          <TableRow key={`${item.sku}-${item.whiPo}-${idx}`}>
+                          <TableRow key={`${item.sku}-${item.whi_po}-${idx}`}>
                             <TableCell className="font-medium text-foreground">
                               {item.sku}
                             </TableCell>
                             <TableCell className="text-muted-foreground">
-                              {item.whiPo}
+                              {item.whi_po}
                             </TableCell>
                             <TableCell className="text-right tabular-nums">
                               {item.qty.toLocaleString()}
                             </TableCell>
                             <TableCell className="text-right tabular-nums text-muted-foreground">
-                              {formatCurrency(item.unitPrice)}
+                              {formatCurrency(item.unit_price_usd)}
                             </TableCell>
                             <TableCell className="text-right font-medium tabular-nums text-foreground">
-                              {formatCurrency(item.amount)}
+                              {formatCurrency(item.amount_usd)}
                             </TableCell>
                             <TableCell className="text-right tabular-nums text-muted-foreground">
-                              {item.gw.toLocaleString()} lbs
+                              {item.gw_kg.toLocaleString()} lbs
                             </TableCell>
                           </TableRow>
                         ))}

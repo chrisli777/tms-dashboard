@@ -1,35 +1,37 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { bolData, groupByBOL } from "@/lib/bol-data"
+import type { BOLSummary } from "@/lib/bol-data"
 import { KPICards } from "./kpi-cards"
 import { FilterBar } from "./filter-bar"
 import { BOLTable } from "./bol-table"
 import { Ship } from "lucide-react"
 
-export function BOLDashboard() {
+interface BOLDashboardProps {
+  initialData: BOLSummary[]
+}
+
+export function BOLDashboard({ initialData }: BOLDashboardProps) {
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [supplierFilter, setSupplierFilter] = useState("all")
 
-  const allSummaries = useMemo(() => groupByBOL(bolData), [])
-
   const supplierOptions = useMemo(
-    () => [...new Set(allSummaries.map((r) => r.supplier))].sort(),
-    [allSummaries]
+    () => [...new Set(initialData.map((r) => r.supplier))].sort(),
+    [initialData]
   )
 
   const counts = useMemo(
     () => ({
-      all: allSummaries.length,
-      inTransit: allSummaries.filter((r) => r.status === "In Transit").length,
-      cleared: allSummaries.filter((r) => r.status === "Cleared").length,
+      all: initialData.length,
+      inTransit: initialData.filter((r) => r.status === "In Transit").length,
+      cleared: initialData.filter((r) => r.status === "Cleared").length,
     }),
-    [allSummaries]
+    [initialData]
   )
 
   const filtered = useMemo(() => {
-    return allSummaries.filter((r) => {
+    return initialData.filter((r) => {
       if (statusFilter !== "all" && r.status !== statusFilter) return false
       if (supplierFilter !== "all" && r.supplier !== supplierFilter) return false
       if (search) {
@@ -47,7 +49,7 @@ export function BOLDashboard() {
       }
       return true
     })
-  }, [allSummaries, search, statusFilter, supplierFilter])
+  }, [initialData, search, statusFilter, supplierFilter])
 
   return (
     <div className="min-h-screen bg-background">
