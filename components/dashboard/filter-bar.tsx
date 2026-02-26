@@ -15,12 +15,14 @@ interface FilterBarProps {
   onSearchChange: (value: string) => void
   statusFilter: string
   onStatusFilterChange: (value: string) => void
-  blFilter: string
-  onBlFilterChange: (value: string) => void
-  blOptions: string[]
-  poFilter: string
-  onPoFilterChange: (value: string) => void
-  poOptions: string[]
+  supplierFilter: string
+  onSupplierFilterChange: (value: string) => void
+  supplierOptions: string[]
+  counts: {
+    all: number
+    inTransit: number
+    cleared: number
+  }
 }
 
 export function FilterBar({
@@ -28,63 +30,62 @@ export function FilterBar({
   onSearchChange,
   statusFilter,
   onStatusFilterChange,
-  blFilter,
-  onBlFilterChange,
-  blOptions,
-  poFilter,
-  onPoFilterChange,
-  poOptions,
+  supplierFilter,
+  onSupplierFilterChange,
+  supplierOptions,
+  counts,
 }: FilterBarProps) {
+  const tabs = [
+    { value: "all", label: "All", count: counts.all },
+    { value: "In Transit", label: "In Transit", count: counts.inTransit },
+    { value: "Cleared", label: "Cleared", count: counts.cleared },
+  ]
+
   return (
-    <div className="flex flex-col gap-3 md:flex-row md:items-center">
-      <div className="relative flex-1">
-        <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Search by container, SKU, invoice..."
-          value={search}
-          onChange={(e) => onSearchChange(e.target.value)}
-          className="pl-9"
-        />
-      </div>
-      <div className="flex flex-wrap gap-3">
-        <Select value={statusFilter} onValueChange={onStatusFilterChange}>
-          <SelectTrigger className="w-[140px]">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="Cleared">Cleared</SelectItem>
-            <SelectItem value="In Transit">In Transit</SelectItem>
-          </SelectContent>
-        </Select>
+    <div className="flex flex-col gap-4">
+      {/* Status Tabs */}
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-1 rounded-lg bg-muted p-1">
+          {tabs.map((tab) => (
+            <button
+              key={tab.value}
+              onClick={() => onStatusFilterChange(tab.value)}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                statusFilter === tab.value
+                  ? "bg-card text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {tab.label} ({tab.count})
+            </button>
+          ))}
+        </div>
 
-        <Select value={blFilter} onValueChange={onBlFilterChange}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="BL No." />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All BL No.</SelectItem>
-            {blOptions.map((bl) => (
-              <SelectItem key={bl} value={bl}>
-                {"..." + bl.slice(-8)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-3">
+          <Select value={supplierFilter} onValueChange={onSupplierFilterChange}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="All Suppliers" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Suppliers</SelectItem>
+              {supplierOptions.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {s}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-        <Select value={poFilter} onValueChange={onPoFilterChange}>
-          <SelectTrigger className="w-[130px]">
-            <SelectValue placeholder="WHI PO" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All PO</SelectItem>
-            {poOptions.map((po) => (
-              <SelectItem key={po} value={po}>
-                {po}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search invoice, BOL, or SKU..."
+              value={search}
+              onChange={(e) => onSearchChange(e.target.value)}
+              className="w-[240px] pl-9"
+            />
+          </div>
+        </div>
       </div>
     </div>
   )

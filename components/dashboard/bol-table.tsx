@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import Link from "next/link"
 import {
   Table,
   TableBody,
@@ -9,193 +9,147 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { ArrowUpDown, ChevronLeft, ChevronRight } from "lucide-react"
-import type { BOLRecord } from "@/lib/bol-data"
+import { ChevronRight } from "lucide-react"
+import type { BOLSummary } from "@/lib/bol-data"
 
 interface BOLTableProps {
-  data: BOLRecord[]
+  data: BOLSummary[]
 }
 
-type SortKey = keyof BOLRecord
-type SortDir = "asc" | "desc"
+function formatDate(dateStr: string) {
+  const date = new Date(dateStr + "T00:00:00")
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  })
+}
 
-const PAGE_SIZE = 15
+function formatCurrency(value: number) {
+  return `$${value.toLocaleString("en-US", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  })}`
+}
+
+function formatWeight(value: number) {
+  return `${value.toLocaleString()} lbs`
+}
 
 export function BOLTable({ data }: BOLTableProps) {
-  const [sortKey, setSortKey] = useState<SortKey>("etd")
-  const [sortDir, setSortDir] = useState<SortDir>("desc")
-  const [page, setPage] = useState(0)
-
-  const sorted = useMemo(() => {
-    return [...data].sort((a, b) => {
-      const aVal = a[sortKey]
-      const bVal = b[sortKey]
-      if (typeof aVal === "number" && typeof bVal === "number") {
-        return sortDir === "asc" ? aVal - bVal : bVal - aVal
-      }
-      return sortDir === "asc"
-        ? String(aVal).localeCompare(String(bVal))
-        : String(bVal).localeCompare(String(aVal))
-    })
-  }, [data, sortKey, sortDir])
-
-  const totalPages = Math.ceil(sorted.length / PAGE_SIZE)
-  const paged = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
-
-  function toggleSort(key: SortKey) {
-    if (sortKey === key) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"))
-    } else {
-      setSortKey(key)
-      setSortDir("asc")
-    }
-    setPage(0)
-  }
-
-  const columns: { key: SortKey; label: string; align?: "right" }[] = [
-    { key: "invoice", label: "Invoice" },
-    { key: "blNo", label: "BL No." },
-    { key: "whiPo", label: "WHI PO" },
-    { key: "container", label: "Container" },
-    { key: "type", label: "Type" },
-    { key: "sku", label: "SKU" },
-    { key: "qty", label: "Qty", align: "right" },
-    { key: "gw", label: "GW(kg)", align: "right" },
-    { key: "unitPrice", label: "Unit Price", align: "right" },
-    { key: "amount", label: "Amount(USD)", align: "right" },
-    { key: "etd", label: "ETD" },
-    { key: "eta", label: "ETA" },
-    { key: "status", label: "Status" },
-  ]
-
   return (
-    <div className="space-y-4">
-      <div className="rounded-lg border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow className="hover:bg-transparent">
-              {columns.map((col) => (
-                <TableHead
-                  key={col.key}
-                  className={`cursor-pointer select-none ${col.align === "right" ? "text-right" : ""}`}
-                  onClick={() => toggleSort(col.key)}
-                >
-                  <span className="inline-flex items-center gap-1">
-                    {col.label}
-                    <ArrowUpDown
-                      className={`size-3 ${sortKey === col.key ? "text-primary" : "text-muted-foreground/40"}`}
-                    />
-                  </span>
-                </TableHead>
-              ))}
+    <div className="rounded-lg border bg-card">
+      <Table>
+        <TableHeader>
+          <TableRow className="hover:bg-transparent">
+            <TableHead className="w-10" />
+            <TableHead className="min-w-[280px]">INVOICE / BOL</TableHead>
+            <TableHead>SUPPLIER</TableHead>
+            <TableHead className="text-center">CONTAINERS</TableHead>
+            <TableHead>STATUS</TableHead>
+            <TableHead>ETD</TableHead>
+            <TableHead>ETA</TableHead>
+            <TableHead className="text-right">VALUE</TableHead>
+            <TableHead className="text-right">WEIGHT</TableHead>
+            <TableHead className="text-right">POS</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {data.length === 0 ? (
+            <TableRow>
+              <TableCell
+                colSpan={10}
+                className="h-32 text-center text-muted-foreground"
+              >
+                No shipments found.
+              </TableCell>
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {paged.length === 0 ? (
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="h-24 text-center text-muted-foreground"
-                >
-                  No records found.
+          ) : (
+            data.map((row) => (
+              <TableRow
+                key={`${row.invoice}-${row.bol}`}
+                className="group cursor-pointer"
+              >
+                <TableCell className="pr-0">
+                  <Link
+                    href={`/bol/${encodeURIComponent(row.bol)}`}
+                    className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors group-hover:bg-accent group-hover:text-foreground"
+                  >
+                    <ChevronRight className="size-4" />
+                  </Link>
+                </TableCell>
+                <TableCell>
+                  <Link
+                    href={`/bol/${encodeURIComponent(row.bol)}`}
+                    className="block"
+                  >
+                    <span className="block font-semibold text-foreground">
+                      {row.invoice}
+                    </span>
+                    <span className="block text-xs text-muted-foreground">
+                      {row.bol}
+                    </span>
+                  </Link>
+                </TableCell>
+                <TableCell>
+                  <span className="font-medium text-primary">{row.supplier}</span>
+                </TableCell>
+                <TableCell className="text-center tabular-nums">
+                  {row.containerCount}
+                </TableCell>
+                <TableCell>
+                  <StatusBadge status={row.status} />
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {formatDate(row.etd)}
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {formatDate(row.eta)}
+                </TableCell>
+                <TableCell className="text-right font-semibold tabular-nums text-foreground">
+                  {formatCurrency(row.totalAmount)}
+                </TableCell>
+                <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
+                  {formatWeight(row.totalWeight)}
+                </TableCell>
+                <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
+                  {row.poCount} {row.poCount === 1 ? "PO" : "POs"}
                 </TableCell>
               </TableRow>
-            ) : (
-              paged.map((row, idx) => (
-                <TableRow key={`${row.container}-${row.sku}-${idx}`}>
-                  <TableCell className="font-medium text-foreground">
-                    {row.invoice}
-                  </TableCell>
-                  <TableCell className="font-mono text-xs text-muted-foreground">
-                    {"..." + row.blNo.slice(-8)}
-                  </TableCell>
-                  <TableCell>{row.whiPo}</TableCell>
-                  <TableCell className="font-mono text-xs">
-                    {row.container}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="text-xs font-normal">
-                      {row.type}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{row.sku}</TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {row.qty.toLocaleString()}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {row.gw.toLocaleString()}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    ${row.unitPrice.toFixed(2)}
-                  </TableCell>
-                  <TableCell className="text-right font-medium tabular-nums">
-                    ${row.amount.toLocaleString("en-US", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </TableCell>
-                  <TableCell>{row.etd}</TableCell>
-                  <TableCell>{row.eta}</TableCell>
-                  <TableCell>
-                    <StatusBadge status={row.status} />
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
-
-      {/* Pagination */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          Showing {paged.length === 0 ? 0 : page * PAGE_SIZE + 1}
-          {"-"}
-          {Math.min((page + 1) * PAGE_SIZE, sorted.length)} of{" "}
-          {sorted.length} records
-        </p>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page === 0}
-            onClick={() => setPage((p) => p - 1)}
-          >
-            <ChevronLeft className="size-4" />
-            <span className="sr-only">Previous page</span>
-          </Button>
-          <span className="text-sm text-muted-foreground tabular-nums">
-            {page + 1} / {totalPages || 1}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page >= totalPages - 1}
-            onClick={() => setPage((p) => p + 1)}
-          >
-            <ChevronRight className="size-4" />
-            <span className="sr-only">Next page</span>
-          </Button>
-        </div>
-      </div>
+            ))
+          )}
+        </TableBody>
+      </Table>
     </div>
   )
 }
 
-function StatusBadge({ status }: { status: BOLRecord["status"] }) {
+function StatusBadge({ status }: { status: "Cleared" | "In Transit" }) {
   if (status === "Cleared") {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-success/10 px-2.5 py-0.5 text-xs font-medium text-success">
-        <span className="size-1.5 rounded-full bg-success" />
-        Cleared
+      <span className="inline-flex items-center gap-1.5 rounded-md bg-success/10 px-2.5 py-1 text-xs font-medium text-success">
+        <svg
+          className="size-3.5"
+          viewBox="0 0 16 16"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <rect width="16" height="16" rx="3" fill="currentColor" fillOpacity="0.15" />
+          <path
+            d="M11.5 5.5L7 10.5L4.5 8"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+        Customs Cleared
       </span>
     )
   }
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-chart-5/10 px-2.5 py-0.5 text-xs font-medium text-chart-5">
-      <span className="size-1.5 animate-pulse rounded-full bg-chart-5" />
+    <span className="inline-flex items-center gap-1.5 rounded-md bg-chart-3/10 px-2.5 py-1 text-xs font-medium text-chart-3">
+      <span className="size-2 animate-pulse rounded-full bg-chart-3" />
       In Transit
     </span>
   )
