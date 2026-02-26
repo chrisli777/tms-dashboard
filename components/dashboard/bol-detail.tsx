@@ -11,7 +11,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, Ship, Container, Check } from "lucide-react"
+import { ArrowLeft, Ship, Check } from "lucide-react"
 import type { BOLSummary } from "@/lib/bol-data"
 
 interface BOLDetailProps {
@@ -221,7 +221,7 @@ export function BOLDetail({ summary }: BOLDetailProps) {
                     {/* Container header */}
                     <div className="flex items-center justify-between border-b px-5 py-3.5">
                       <div className="flex items-center gap-3">
-                        <Container className="size-4 text-muted-foreground" />
+                        <svg xmlns="http://www.w3.org/2000/svg" className="size-4 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
                         <span className="font-mono text-sm font-semibold text-foreground">
                           {ctr.container}
                         </span>
