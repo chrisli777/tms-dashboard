@@ -3,6 +3,9 @@ import { OrderDashboard } from "@/components/orders/order-dashboard"
 import { SidebarLayout } from "@/components/sidebar-layout"
 import { fetchAllOrders } from "@/lib/order-data"
 
+// Force dynamic rendering to always get fresh data
+export const dynamic = "force-dynamic"
+
 export default async function HomePage() {
   const orders = await fetchAllOrders()
 

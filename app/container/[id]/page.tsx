@@ -4,6 +4,9 @@ import { createClient } from "@/lib/supabase/server"
 import { ContainerDetail } from "@/components/dashboard/container-detail"
 import { SidebarLayout } from "@/components/sidebar-layout"
 
+// Force dynamic rendering to always get fresh data
+export const dynamic = "force-dynamic"
+
 interface ContainerPageProps {
   params: Promise<{ id: string }>
 }

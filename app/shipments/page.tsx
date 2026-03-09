@@ -3,6 +3,9 @@ import { fetchAllBOLSummaries } from "@/lib/bol-data"
 import { BOLDashboard } from "@/components/dashboard/bol-dashboard"
 import { SidebarLayout } from "@/components/sidebar-layout"
 
+// Force dynamic rendering to always get fresh data
+export const dynamic = "force-dynamic"
+
 export default async function ShipmentsPage() {
   const summaries = await fetchAllBOLSummaries()
 

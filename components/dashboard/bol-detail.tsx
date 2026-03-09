@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useSWRConfig } from "swr"
@@ -61,13 +62,21 @@ function getCurrentStep(status: string) {
 export function BOLDetail({ summary }: BOLDetailProps) {
   const router = useRouter()
   const { mutate } = useSWRConfig()
-  const currentStep = getCurrentStep(summary.status)
+  
+  // Use local state to reflect status changes immediately
+  const [currentStatus, setCurrentStatus] = useState(summary.status)
+  const currentStep = getCurrentStep(currentStatus)
+  
   const totalItems = summary.containers.reduce(
     (sum, c) => sum + c.items.length,
     0
   )
 
   const handleStatusChange = async (newStatus: string) => {
+    // Optimistically update UI
+    const previousStatus = currentStatus
+    setCurrentStatus(newStatus)
+    
     try {
       const response = await fetch(`/api/shipments/${summary.id}/status`, {
         method: "PATCH",
@@ -76,6 +85,8 @@ export function BOLDetail({ summary }: BOLDetailProps) {
       })
 
       if (!response.ok) {
+        // Revert on error
+        setCurrentStatus(previousStatus)
         throw new Error("Failed to update status")
       }
 
@@ -110,7 +121,7 @@ export function BOLDetail({ summary }: BOLDetailProps) {
           </span>
         </div>
         <StatusSelector
-          currentStatus={summary.status}
+          currentStatus={currentStatus}
           statuses={SHIPMENT_STATUSES}
           onStatusChange={handleStatusChange}
         />
@@ -183,7 +194,7 @@ export function BOLDetail({ summary }: BOLDetailProps) {
               CONTAINER STATUS ({summary.containerCount} CONTAINERS)
             </h2>
             <div className="flex items-center gap-3">
-              <StatusBadge status={summary.status} />
+              <StatusBadge status={currentStatus} />
               <span className="text-sm font-medium text-foreground">
                 {summary.containerCount}
               </span>
@@ -279,8 +290,13 @@ export function BOLDetail({ summary }: BOLDetailProps) {
                         <TableCell className="font-medium text-foreground">
                           {item.sku}
                         </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {item.whi_po}
+                        <TableCell>
+                          <Link 
+                            href={`/orders/${item.whi_po}`}
+                            className="text-primary hover:underline"
+                          >
+                            {item.whi_po}
+                          </Link>
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
                           {item.qty.toLocaleString()}
@@ -344,10 +360,10 @@ function StatusBadge({ status }: { status: string }) {
       </span>
     )
   }
-  if (status === "Booked") {
+  if (status === "Booked" || status === "Scheduled") {
     return (
       <span className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
-        Booked
+        {status}
       </span>
     )
   }

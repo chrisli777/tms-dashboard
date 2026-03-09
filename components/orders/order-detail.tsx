@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useSWRConfig } from "swr"
@@ -56,6 +57,7 @@ function getCurrentStep(status: string) {
 export function OrderDetail({ order }: OrderDetailProps) {
   const router = useRouter()
   const { mutate } = useSWRConfig()
+  const [currentStatus, setCurrentStatus] = useState(order.status)
   
   const clearedBOLs = order.bols.filter((b) => 
     b.status === "Cleared" || b.status === "Customs Cleared"
@@ -71,6 +73,9 @@ export function OrderDetail({ order }: OrderDetailProps) {
   ).length
 
   const handleStatusChange = async (newStatus: string) => {
+    const previousStatus = currentStatus
+    setCurrentStatus(newStatus)
+    
     try {
       const response = await fetch(`/api/orders/${order.id}/status`, {
         method: "PATCH",
@@ -79,6 +84,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
       })
 
       if (!response.ok) {
+        setCurrentStatus(previousStatus)
         throw new Error("Failed to update status")
       }
 
@@ -98,7 +104,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
           {order.supplier} • {order.customer} • Order Date: {formatDate(order.orderDate)}
         </p>
         <StatusSelector
-          currentStatus={order.status}
+          currentStatus={currentStatus}
           statuses={ORDER_STATUSES}
           onStatusChange={handleStatusChange}
         />

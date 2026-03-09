@@ -4,6 +4,9 @@ import { fetchBOLByBol } from "@/lib/bol-data"
 import { BOLDetail } from "@/components/dashboard/bol-detail"
 import { SidebarLayout } from "@/components/sidebar-layout"
 
+// Force dynamic rendering to always get fresh data
+export const dynamic = "force-dynamic"
+
 interface BOLPageProps {
   params: Promise<{ id: string }>
 }

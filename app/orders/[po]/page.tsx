@@ -4,6 +4,9 @@ import { fetchOrderByPO } from "@/lib/order-data"
 import { OrderDetail } from "@/components/orders/order-detail"
 import { SidebarLayout } from "@/components/sidebar-layout"
 
+// Force dynamic rendering to always get fresh data
+export const dynamic = "force-dynamic"
+
 interface OrderDetailPageProps {
   params: Promise<{ po: string }>
 }
