@@ -77,9 +77,6 @@ export function BOLDetail({ summary }: BOLDetailProps) {
     const previousStatus = currentStatus
     setCurrentStatus(newStatus)
     
-    console.log("[v0] Updating status from", previousStatus, "to", newStatus)
-    console.log("[v0] Shipment ID:", summary.id)
-    
     try {
       const response = await fetch(`/api/shipments/${summary.id}/status`, {
         method: "PATCH",
@@ -88,20 +85,18 @@ export function BOLDetail({ summary }: BOLDetailProps) {
       })
 
       const data = await response.json()
-      console.log("[v0] API Response:", data)
 
       if (!response.ok) {
         // Revert on error
         setCurrentStatus(previousStatus)
-        console.error("[v0] API Error:", data)
-        throw new Error("Failed to update status")
+        throw new Error(data.error || "Failed to update status")
       }
 
       // Revalidate all related data
       mutate(() => true, undefined, { revalidate: true })
       router.refresh()
     } catch (error) {
-      console.error("[v0] Error updating status:", error)
+      console.error("Error updating status:", error)
       alert("Failed to update status. Please try again.")
     }
   }
@@ -200,12 +195,7 @@ export function BOLDetail({ summary }: BOLDetailProps) {
             <h2 className="mb-4 text-xs font-semibold tracking-wider text-muted-foreground">
               CONTAINER STATUS ({summary.containerCount} CONTAINERS)
             </h2>
-            <div className="flex items-center gap-3">
-              <StatusBadge status={currentStatus} />
-              <span className="text-sm font-medium text-foreground">
-                {summary.containerCount}
-              </span>
-            </div>
+            <ContainerStatusSummary containers={summary.containers} />
           </CardContent>
         </Card>
         <Card>
@@ -326,6 +316,38 @@ export function BOLDetail({ summary }: BOLDetailProps) {
           ))}
         </div>
       </div>
+    </div>
+  )
+}
+
+// Aggregate container statuses and display counts
+function ContainerStatusSummary({ containers }: { containers: { status: string }[] }) {
+  // Count containers by status
+  const statusCounts = containers.reduce((acc, c) => {
+    acc[c.status] = (acc[c.status] || 0) + 1
+    return acc
+  }, {} as Record<string, number>)
+
+  // Define status order for consistent display
+  const statusOrder = ["Booked", "On Water", "Customs Cleared", "Scheduled", "Delivered"]
+  
+  // Filter to only show statuses that have counts
+  const activeStatuses = statusOrder.filter(s => statusCounts[s] > 0)
+  
+  if (activeStatuses.length === 0) {
+    return <span className="text-sm text-muted-foreground">No containers</span>
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      {activeStatuses.map(status => (
+        <div key={status} className="flex items-center gap-2">
+          <StatusBadge status={status} />
+          <span className="text-sm font-medium text-foreground">
+            {statusCounts[status]}
+          </span>
+        </div>
+      ))}
     </div>
   )
 }
