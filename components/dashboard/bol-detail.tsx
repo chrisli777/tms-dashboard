@@ -42,7 +42,7 @@ const TIMELINE_STEPS = [
   { label: "Booked", step: 0 },
   { label: "On Water", step: 1 },
   { label: "Customs Cleared", step: 2 },
-  { label: "Delivering", step: 3 },
+  { label: "Scheduled", step: 3 },
   { label: "Delivered", step: 4 },
   { label: "Closed", step: 5 },
 ]
@@ -52,7 +52,7 @@ function getCurrentStep(status: string) {
     "Booked": 0,
     "On Water": 1,
     "Customs Cleared": 2,
-    "Delivering": 3,
+    "Scheduled": 3,
     "Delivered": 4,
     "Closed": 5,
   }
@@ -77,6 +77,9 @@ export function BOLDetail({ summary }: BOLDetailProps) {
     const previousStatus = currentStatus
     setCurrentStatus(newStatus)
     
+    console.log("[v0] Updating status from", previousStatus, "to", newStatus)
+    console.log("[v0] Shipment ID:", summary.id)
+    
     try {
       const response = await fetch(`/api/shipments/${summary.id}/status`, {
         method: "PATCH",
@@ -84,9 +87,13 @@ export function BOLDetail({ summary }: BOLDetailProps) {
         body: JSON.stringify({ status: newStatus }),
       })
 
+      const data = await response.json()
+      console.log("[v0] API Response:", data)
+
       if (!response.ok) {
         // Revert on error
         setCurrentStatus(previousStatus)
+        console.error("[v0] API Error:", data)
         throw new Error("Failed to update status")
       }
 
@@ -94,7 +101,7 @@ export function BOLDetail({ summary }: BOLDetailProps) {
       mutate(() => true, undefined, { revalidate: true })
       router.refresh()
     } catch (error) {
-      console.error("Error updating status:", error)
+      console.error("[v0] Error updating status:", error)
       alert("Failed to update status. Please try again.")
     }
   }

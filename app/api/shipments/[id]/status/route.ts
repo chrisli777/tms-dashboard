@@ -11,6 +11,8 @@ export async function PATCH(
   try {
     const { status } = await request.json()
 
+    console.log("[v0] Updating shipment status:", { id, status })
+
     if (!status) {
       return NextResponse.json(
         { error: "Status is required" },
@@ -18,9 +20,10 @@ export async function PATCH(
       )
     }
 
-    // Valid shipment statuses
-    const validStatuses = ["Booked", "On Water", "Customs Cleared", "Delivering", "Delivered", "Closed"]
+    // Valid shipment statuses (Delivering renamed to Scheduled)
+    const validStatuses = ["Booked", "On Water", "Customs Cleared", "Scheduled", "Delivered", "Closed"]
     if (!validStatuses.includes(status)) {
+      console.log("[v0] Invalid status:", status)
       return NextResponse.json(
         { error: "Invalid status" },
         { status: 400 }
@@ -28,48 +31,47 @@ export async function PATCH(
     }
 
     // Update shipment status
-    const { error: shipmentError } = await supabase
+    const { data: shipmentData, error: shipmentError } = await supabase
       .from("shipments")
       .update({ status })
       .eq("id", id)
+      .select()
 
     if (shipmentError) {
-      console.error("Failed to update shipment:", shipmentError)
+      console.error("[v0] Failed to update shipment:", shipmentError)
       return NextResponse.json(
         { error: "Failed to update shipment status" },
         { status: 500 }
       )
     }
 
-    // Map shipment status to container status
-    // Container status is separate - only changes if explicitly set
-    // But we can set initial container status based on shipment status
-    let containerStatus: string | null = null
-    if (status === "Customs Cleared") {
-      containerStatus = "Customs Cleared"
-    } else if (status === "Delivering") {
-      containerStatus = "Scheduled"
-    } else if (status === "Delivered" || status === "Closed") {
+    console.log("[v0] Shipment updated:", shipmentData)
+
+    // Map shipment status to container status - sync all containers
+    // When BOL status changes, all its containers should match
+    let containerStatus: string = status
+    // Container statuses: Booked, On Water, Customs Cleared, Scheduled, Delivered
+    // Map Closed to Delivered for containers
+    if (status === "Closed") {
       containerStatus = "Delivered"
-    } else if (status === "Booked" || status === "On Water") {
-      containerStatus = status
     }
 
-    // Only update container status if needed
-    if (containerStatus) {
-      const { error: containerError } = await supabase
-        .from("containers")
-        .update({ status: containerStatus })
-        .eq("shipment_id", id)
+    // Update all containers for this shipment
+    const { data: containerData, error: containerError } = await supabase
+      .from("containers")
+      .update({ status: containerStatus })
+      .eq("shipment_id", id)
+      .select()
 
-      if (containerError) {
-        console.error("Failed to update containers:", containerError)
-      }
+    if (containerError) {
+      console.error("[v0] Failed to update containers:", containerError)
+    } else {
+      console.log("[v0] Containers updated:", containerData?.length)
     }
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true, shipment: shipmentData, containers: containerData })
   } catch (error) {
-    console.error("Error updating shipment status:", error)
+    console.error("[v0] Error updating shipment status:", error)
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

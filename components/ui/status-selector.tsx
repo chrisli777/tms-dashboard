@@ -15,7 +15,7 @@ export const SHIPMENT_STATUSES = [
   { value: "Booked", label: "Booked" },
   { value: "On Water", label: "On Water" },
   { value: "Customs Cleared", label: "Customs Cleared" },
-  { value: "Delivering", label: "Delivering" },
+  { value: "Scheduled", label: "Scheduled" },
   { value: "Delivered", label: "Delivered" },
   { value: "Closed", label: "Closed" },
 ] as const

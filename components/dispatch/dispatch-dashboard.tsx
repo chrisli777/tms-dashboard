@@ -46,7 +46,6 @@ export function DispatchDashboard({ initialData }: DispatchDashboardProps) {
     )
     return {
       all: filtered.length,
-      customsCleared: filtered.filter((c) => c.status === "Customs Cleared").length,
       scheduled: filtered.filter((c) => c.status === "Scheduled").length,
       delivered: filtered.filter((c) => c.status === "Delivered").length,
     }

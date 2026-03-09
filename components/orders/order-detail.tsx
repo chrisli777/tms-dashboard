@@ -38,7 +38,7 @@ const TIMELINE_STEPS = [
   { label: "Booked", step: 0 },
   { label: "On Water", step: 1 },
   { label: "Customs Cleared", step: 2 },
-  { label: "Delivering", step: 3 },
+  { label: "Scheduled", step: 3 },
   { label: "Delivered", step: 4 },
 ]
 
@@ -47,7 +47,7 @@ function getCurrentStep(status: string) {
     "Booked": 0,
     "On Water": 1,
     "Customs Cleared": 2,
-    "Delivering": 3,
+    "Scheduled": 3,
     "Delivered": 4,
     "Closed": 5,
   }
@@ -65,8 +65,8 @@ export function OrderDetail({ order }: OrderDetailProps) {
   const inTransitBOLs = order.bols.filter((b) => 
     b.status === "In Transit" || b.status === "On Water"
   ).length
-  const deliveringBOLs = order.bols.filter((b) => 
-    b.status === "Delivering"
+  const scheduledBOLs = order.bols.filter((b) => 
+    b.status === "Scheduled"
   ).length
   const deliveredBOLs = order.bols.filter((b) => 
     b.status === "Delivered" || b.status === "Closed"
@@ -145,7 +145,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
         <Card className="border-blue-500/20 bg-blue-500/5 py-4">
           <CardContent className="px-4">
             <div className="text-2xl font-bold tabular-nums text-blue-600">
-              {deliveringBOLs + deliveredBOLs}
+              {scheduledBOLs + deliveredBOLs}
             </div>
             <p className="text-xs font-semibold tracking-wider text-muted-foreground">
               DELIVERED
@@ -336,11 +336,11 @@ function BOLStatusBadge({ status }: { status: string }) {
       </Badge>
     )
   }
-  if (status === "Delivering") {
+  if (status === "Scheduled") {
     return (
       <Badge className="bg-purple-500/10 text-purple-600 hover:bg-purple-500/20">
         <Ship className="mr-1 size-3" />
-        Delivering
+        Scheduled
       </Badge>
     )
   }
