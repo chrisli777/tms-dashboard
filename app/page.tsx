@@ -10,7 +10,7 @@ export default async function HomePage() {
     <SidebarLayout
       title="Order Management"
       description="Track and manage purchase orders"
-      icon={<LayoutGrid className="size-5" />}
+      icon={<LayoutGrid className="h-8 w-8" />}
     >
       <OrderDashboard initialData={orders} />
     </SidebarLayout>

@@ -21,7 +21,7 @@ export default async function BOLPage({ params }: BOLPageProps) {
     <SidebarLayout
       title={summary.invoice}
       description={`BOL: ${summary.bol}`}
-      icon={<Ship className="size-5" />}
+      icon={<Ship className="h-8 w-8" />}
     >
       <BOLDetail summary={summary} />
     </SidebarLayout>

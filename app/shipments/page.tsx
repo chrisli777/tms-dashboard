@@ -10,7 +10,7 @@ export default async function ShipmentsPage() {
     <SidebarLayout
       title="Shipment Tracking"
       description="Track shipments from origin to warehouse delivery"
-      icon={<Ship className="size-5" />}
+      icon={<Ship className="h-8 w-8" />}
     >
       <BOLDashboard initialData={summaries} />
     </SidebarLayout>

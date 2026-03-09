@@ -40,24 +40,24 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" className="border-r-0">
       {/* Header with title and toggle */}
-      <SidebarHeader className="h-14 flex-row items-center px-3 gap-0">
+      <SidebarHeader className="h-14 flex-row items-center justify-between px-4">
         <Link
           href="/"
-          className="flex items-center gap-2 group-data-[collapsible=icon]:hidden flex-1"
+          className="flex items-center group-data-[collapsible=icon]:hidden"
         >
-          <span className="text-base font-bold tracking-tight text-sidebar-accent-foreground">
+          <span className="text-lg font-bold text-white">
             WHI SCM
           </span>
         </Link>
         <button
           onClick={toggleSidebar}
-          className="flex size-8 items-center justify-center rounded-md text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          className="flex size-7 items-center justify-center rounded text-slate-400 transition-colors hover:bg-slate-800 hover:text-white"
           aria-label="Toggle sidebar"
         >
           {state === "collapsed" ? (
-            <ChevronRight className="size-4" />
+            <ChevronRight className="h-4 w-4" />
           ) : (
-            <ChevronLeft className="size-4" />
+            <ChevronLeft className="h-4 w-4" />
           )}
         </button>
       </SidebarHeader>
@@ -71,11 +71,11 @@ export function AppSidebar() {
                 asChild
                 isActive={isActive(item.href)}
                 tooltip={item.title}
-                className="h-11 gap-3 rounded-lg px-2.5 text-sidebar-foreground transition-colors data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
+                className="h-10 gap-3 rounded-md px-3 text-sm font-medium text-slate-300 transition-colors data-[active=true]:bg-slate-700 data-[active=true]:text-white hover:bg-slate-800 hover:text-white"
               >
                 <Link href={item.href}>
-                  <item.icon className="size-5 shrink-0" />
-                  <span className="text-sm">{item.title}</span>
+                  <item.icon className="h-5 w-5 shrink-0" />
+                  <span>{item.title}</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
