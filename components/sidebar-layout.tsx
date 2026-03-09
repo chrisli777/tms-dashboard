@@ -21,14 +21,14 @@ export function SidebarLayout({
       <AppSidebar />
       <SidebarInset className="relative">
         {title && (
-          <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-background px-6">
+          <header className="flex h-16 shrink-0 items-center gap-4 border-b bg-background px-8">
             {icon && (
-              <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 {icon}
               </div>
             )}
             <div className="flex flex-col">
-              <span className="text-lg font-semibold leading-tight text-foreground">
+              <span className="text-xl font-semibold leading-tight text-primary">
                 {title}
               </span>
               {description && (
