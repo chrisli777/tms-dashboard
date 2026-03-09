@@ -71,10 +71,10 @@ export function AppSidebar() {
                 asChild
                 isActive={isActive(item.href)}
                 tooltip={item.title}
-                className="h-10 gap-3 rounded-lg px-3 text-sidebar-foreground transition-colors data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
+                className="h-11 gap-3 rounded-lg px-2.5 text-sidebar-foreground transition-colors data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
               >
                 <Link href={item.href}>
-                  <item.icon className="size-6 shrink-0" />
+                  <item.icon className="size-5 shrink-0" />
                   <span className="text-sm">{item.title}</span>
                 </Link>
               </SidebarMenuButton>
