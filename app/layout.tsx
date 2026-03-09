@@ -7,8 +7,8 @@ const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'TMS Dashboard',
-  description: 'Transportation Management System - Track orders, shipments, BOLs, containers, and SKUs',
+  title: 'WHI SCM',
+  description: 'Supply Chain Management - Orders, Shipments, Forecasting & Replenishment',
   generator: 'v0.app',
   icons: {
     icon: [

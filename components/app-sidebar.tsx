@@ -2,38 +2,48 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { ClipboardList, Ship, Package, ChevronRight } from "lucide-react"
+import { LayoutGrid, FileText, Ship, Truck, BarChart3, ChevronLeft } from "lucide-react"
+import { useSidebar } from "@/components/ui/sidebar"
 import {
   Sidebar,
   SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-  SidebarFooter,
-  SidebarRail,
 } from "@/components/ui/sidebar"
 
 const navItems = [
   {
-    title: "Orders",
+    title: "Pipeline Dashboard",
     href: "/",
-    icon: ClipboardList,
-    description: "Purchase order management",
+    icon: LayoutGrid,
   },
   {
-    title: "Shipments",
+    title: "Customer Forecast",
+    href: "/forecast",
+    icon: FileText,
+  },
+  {
+    title: "Shipment Tracking",
     href: "/shipments",
     icon: Ship,
-    description: "BOL & container tracking",
+  },
+  {
+    title: "Dispatcher",
+    href: "/dispatcher",
+    icon: Truck,
+  },
+  {
+    title: "Replenishment",
+    href: "/replenishment",
+    icon: BarChart3,
   },
 ]
 
 export function AppSidebar() {
   const pathname = usePathname()
+  const { toggleSidebar, state } = useSidebar()
 
   const isActive = (href: string) => {
     if (href === "/") {
@@ -43,52 +53,47 @@ export function AppSidebar() {
   }
 
   return (
-    <Sidebar collapsible="icon" className="border-r">
-      <SidebarHeader className="border-b px-4 py-4">
-        <Link href="/" className="flex items-center gap-3">
-          <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Package className="size-4" />
-          </div>
-          <div className="flex flex-col group-data-[collapsible=icon]:hidden">
-            <span className="text-sm font-semibold text-foreground">TMS</span>
-            <span className="text-xs text-muted-foreground">Dashboard</span>
-          </div>
+    <Sidebar collapsible="icon" className="border-r-0">
+      <SidebarHeader className="h-14 flex-row items-center justify-between px-4">
+        <Link
+          href="/"
+          className="flex items-center gap-2 group-data-[collapsible=icon]:hidden"
+        >
+          <span className="text-base font-bold text-sidebar-accent-foreground">
+            WHI SCM
+          </span>
         </Link>
+        <button
+          onClick={toggleSidebar}
+          className="flex size-6 items-center justify-center rounded text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+        >
+          <ChevronLeft
+            className={`size-4 transition-transform ${
+              state === "collapsed" ? "rotate-180" : ""
+            }`}
+          />
+        </button>
       </SidebarHeader>
 
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {navItems.map((item) => (
-                <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={isActive(item.href)}
-                    tooltip={item.title}
-                  >
-                    <Link href={item.href}>
-                      <item.icon className="size-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+      <SidebarContent className="px-2 pt-2">
+        <SidebarMenu>
+          {navItems.map((item) => (
+            <SidebarMenuItem key={item.href}>
+              <SidebarMenuButton
+                asChild
+                isActive={isActive(item.href)}
+                tooltip={item.title}
+                className="h-10 gap-3 rounded-lg px-3 text-sidebar-foreground transition-colors data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
+              >
+                <Link href={item.href}>
+                  <item.icon className="size-5 shrink-0" />
+                  <span className="text-sm">{item.title}</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ))}
+        </SidebarMenu>
       </SidebarContent>
-
-      <SidebarFooter className="border-t px-4 py-3">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
-          <span>v1.0.0</span>
-          <ChevronRight className="size-3" />
-          <span>TMS Dashboard</span>
-        </div>
-      </SidebarFooter>
-
-      <SidebarRail />
     </Sidebar>
   )
 }

@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation"
+import { Ship } from "lucide-react"
 import { fetchBOLByBol } from "@/lib/bol-data"
 import { BOLDetail } from "@/components/dashboard/bol-detail"
 import { SidebarLayout } from "@/components/sidebar-layout"
@@ -17,7 +18,11 @@ export default async function BOLPage({ params }: BOLPageProps) {
   }
 
   return (
-    <SidebarLayout title={`BOL ${summary.bol}`} description="Shipment details and container breakdown">
+    <SidebarLayout
+      title={summary.invoice}
+      description={`BOL: ${summary.bol}`}
+      icon={<Ship className="size-5" />}
+    >
       <BOLDetail summary={summary} />
     </SidebarLayout>
   )

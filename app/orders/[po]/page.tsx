@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation"
+import { FileText } from "lucide-react"
 import { fetchOrderByPO } from "@/lib/order-data"
 import { OrderDetail } from "@/components/orders/order-detail"
 import { SidebarLayout } from "@/components/sidebar-layout"
@@ -16,7 +17,11 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
   }
 
   return (
-    <SidebarLayout title={`Order ${order.poNumber}`} description="Order details and associated shipments">
+    <SidebarLayout
+      title={`PO-${order.poNumber}`}
+      description="Order details and associated shipments"
+      icon={<FileText className="size-5" />}
+    >
       <OrderDetail order={order} />
     </SidebarLayout>
   )

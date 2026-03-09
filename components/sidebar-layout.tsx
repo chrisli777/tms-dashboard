@@ -1,34 +1,72 @@
 "use client"
 
-import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
+import { ChevronRight } from "lucide-react"
+import { SidebarProvider, SidebarInset, useSidebar } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
-import { Separator } from "@/components/ui/separator"
 
 interface SidebarLayoutProps {
   children: React.ReactNode
   title?: string
   description?: string
+  icon?: React.ReactNode
 }
 
-export function SidebarLayout({ children, title, description }: SidebarLayoutProps) {
+function LayoutContent({
+  children,
+  title,
+  description,
+  icon,
+}: SidebarLayoutProps) {
+  const { toggleSidebar, state } = useSidebar()
+
   return (
-    <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset>
-        {title && (
-          <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-background px-4">
-            <SidebarTrigger className="-ml-1" />
-            <Separator orientation="vertical" className="mr-2 h-4" />
-            <div className="flex flex-col">
-              <span className="text-sm font-medium leading-none">{title}</span>
-              {description && (
-                <span className="text-xs text-muted-foreground">{description}</span>
-              )}
+    <SidebarInset className="relative">
+      {/* Floating toggle button on the left edge */}
+      <button
+        onClick={toggleSidebar}
+        className="absolute left-0 top-4 z-10 flex size-6 items-center justify-center rounded-r-md bg-sidebar text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+      >
+        <ChevronRight
+          className={`size-4 transition-transform ${
+            state === "expanded" ? "rotate-180" : ""
+          }`}
+        />
+      </button>
+
+      {title && (
+        <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-background pl-10 pr-6">
+          {icon && (
+            <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              {icon}
             </div>
-          </header>
-        )}
-        <div className="flex flex-1 flex-col">{children}</div>
-      </SidebarInset>
+          )}
+          <div className="flex flex-col">
+            <span className="text-lg font-semibold leading-tight text-foreground">
+              {title}
+            </span>
+            {description && (
+              <span className="text-sm text-muted-foreground">{description}</span>
+            )}
+          </div>
+        </header>
+      )}
+      <div className="flex flex-1 flex-col">{children}</div>
+    </SidebarInset>
+  )
+}
+
+export function SidebarLayout({
+  children,
+  title,
+  description,
+  icon,
+}: SidebarLayoutProps) {
+  return (
+    <SidebarProvider defaultOpen={false}>
+      <AppSidebar />
+      <LayoutContent title={title} description={description} icon={icon}>
+        {children}
+      </LayoutContent>
     </SidebarProvider>
   )
 }
