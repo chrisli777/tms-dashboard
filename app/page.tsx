@@ -8,8 +8,8 @@ export default async function HomePage() {
 
   return (
     <SidebarLayout
-      title="Pipeline Dashboard"
-      description="Order & Inventory Management"
+      title="Order Management"
+      description="Track and manage purchase orders"
       icon={<LayoutGrid className="size-5" />}
     >
       <OrderDashboard initialData={orders} />
