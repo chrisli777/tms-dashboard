@@ -8,7 +8,7 @@ export interface OrderBOL {
   bol: string
   etd: string
   eta: string
-  status: "Cleared" | "In Transit"
+  status: string
   containerCount: number
   itemCount: number
   totalAmount: number
@@ -132,7 +132,7 @@ export async function fetchAllOrders(): Promise<OrderSummary[]> {
         bol: shipment.bol as string,
         etd: shipment.etd as string,
         eta: shipment.eta as string,
-        status: shipment.status as "Cleared" | "In Transit",
+        status: shipment.status as string,
         containerCount: 0,
         itemCount: 0,
         totalAmount: 0,

@@ -124,8 +124,8 @@ export function BOLTable({ data }: BOLTableProps) {
   )
 }
 
-function StatusBadge({ status }: { status: "Cleared" | "In Transit" }) {
-  if (status === "Cleared") {
+function StatusBadge({ status }: { status: string }) {
+  if (status === "Customs Cleared" || status === "Cleared" || status === "Delivered" || status === "Closed") {
     return (
       <span className="inline-flex items-center gap-1.5 rounded-md bg-success/10 px-2.5 py-1 text-xs font-medium text-success">
         <svg
@@ -143,14 +143,21 @@ function StatusBadge({ status }: { status: "Cleared" | "In Transit" }) {
             strokeLinejoin="round"
           />
         </svg>
-        Customs Cleared
+        {status === "Cleared" ? "Customs Cleared" : status}
+      </span>
+    )
+  }
+  if (status === "Booked") {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
+        Booked
       </span>
     )
   }
   return (
     <span className="inline-flex items-center gap-1.5 rounded-md bg-chart-3/10 px-2.5 py-1 text-xs font-medium text-chart-3">
       <span className="size-2 animate-pulse rounded-full bg-chart-3" />
-      In Transit
+      {status === "In Transit" ? "In Transit" : status}
     </span>
   )
 }
