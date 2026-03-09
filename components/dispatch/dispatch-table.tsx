@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
 import {
   Table,
@@ -62,6 +63,8 @@ function formatDate(dateStr: string) {
 }
 
 export function DispatchTable({ data }: DispatchTableProps) {
+  const router = useRouter()
+  
   return (
     <div className="rounded-lg border bg-card">
       <Table>
@@ -92,13 +95,14 @@ export function DispatchTable({ data }: DispatchTableProps) {
               <TableRow
                 key={container.id}
                 className="group cursor-pointer hover:bg-muted/50"
+                onClick={() => router.push(`/container/${container.id}`)}
               >
                 <TableCell>
                   <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
                 </TableCell>
                 <TableCell>
                   <Link
-                    href={`/dispatch/${container.id}`}
+                    href={`/container/${container.id}`}
                     className="font-medium text-foreground hover:text-primary"
                   >
                     {container.container}
