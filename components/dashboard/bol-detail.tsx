@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useSWRConfig } from "swr"
 import { Card, CardContent } from "@/components/ui/card"
@@ -12,7 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Ship, Check } from "lucide-react"
+import { Ship, Check, ChevronRight } from "lucide-react"
 import { StatusSelector, SHIPMENT_STATUSES } from "@/components/ui/status-selector"
 import type { BOLSummary } from "@/lib/bol-data"
 
@@ -234,7 +235,10 @@ export function BOLDetail({ summary }: BOLDetailProps) {
             <Card key={ctr.container}>
               <CardContent className="p-0">
                 {/* Container header */}
-                <div className="flex items-center justify-between border-b px-5 py-3.5">
+                <Link
+                  href={`/container/${ctr.id}`}
+                  className="flex items-center justify-between border-b px-5 py-3.5 transition-colors hover:bg-accent/50"
+                >
                   <div className="flex items-center gap-3">
                     <svg xmlns="http://www.w3.org/2000/svg" className="size-4 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
                     <span className="font-mono text-sm font-semibold text-foreground">
@@ -248,10 +252,13 @@ export function BOLDetail({ summary }: BOLDetailProps) {
                     </Badge>
                     <StatusBadge status={ctr.status} />
                   </div>
-                  <span className="text-xs text-muted-foreground">
-                    {ctr.items.length} {ctr.items.length === 1 ? "SKU" : "SKUs"}
-                  </span>
-                </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">
+                      {ctr.items.length} {ctr.items.length === 1 ? "SKU" : "SKUs"}
+                    </span>
+                    <ChevronRight className="size-4 text-muted-foreground" />
+                  </div>
+                </Link>
                 {/* Items table */}
                 <Table>
                   <TableHeader>

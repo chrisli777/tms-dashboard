@@ -3,16 +3,9 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useSWRConfig } from "swr"
-import { ChevronRight } from "lucide-react"
+import { ChevronRight, Check, Ship } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { Badge } from "@/components/ui/badge"
 import { StatusSelector, ORDER_STATUSES } from "@/components/ui/status-selector"
 import type { OrderSummary } from "@/lib/order-data"
 
@@ -40,11 +33,42 @@ function formatWeight(value: number) {
   return `${value.toLocaleString()} lbs`
 }
 
+const TIMELINE_STEPS = [
+  { label: "Booked", step: 0 },
+  { label: "On Water", step: 1 },
+  { label: "Customs Cleared", step: 2 },
+  { label: "Delivering", step: 3 },
+  { label: "Delivered", step: 4 },
+]
+
+function getCurrentStep(status: string) {
+  const stepMap: Record<string, number> = {
+    "Booked": 0,
+    "On Water": 1,
+    "Customs Cleared": 2,
+    "Delivering": 3,
+    "Delivered": 4,
+    "Closed": 5,
+  }
+  return stepMap[status] ?? 1
+}
+
 export function OrderDetail({ order }: OrderDetailProps) {
   const router = useRouter()
   const { mutate } = useSWRConfig()
-  const clearedBOLs = order.bols.filter((b) => b.status === "Cleared").length
-  const inTransitBOLs = order.bols.filter((b) => b.status === "In Transit").length
+  
+  const clearedBOLs = order.bols.filter((b) => 
+    b.status === "Cleared" || b.status === "Customs Cleared"
+  ).length
+  const inTransitBOLs = order.bols.filter((b) => 
+    b.status === "In Transit" || b.status === "On Water"
+  ).length
+  const deliveringBOLs = order.bols.filter((b) => 
+    b.status === "Delivering"
+  ).length
+  const deliveredBOLs = order.bols.filter((b) => 
+    b.status === "Delivered" || b.status === "Closed"
+  ).length
 
   const handleStatusChange = async (newStatus: string) => {
     try {
@@ -58,7 +82,6 @@ export function OrderDetail({ order }: OrderDetailProps) {
         throw new Error("Failed to update status")
       }
 
-      // Revalidate all related data
       mutate(() => true, undefined, { revalidate: true })
       router.refresh()
     } catch (error) {
@@ -82,7 +105,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-6">
         <Card className="border-primary/20 bg-primary/5 py-4">
           <CardContent className="px-4">
             <div className="text-2xl font-bold tabular-nums text-primary">
@@ -90,6 +113,16 @@ export function OrderDetail({ order }: OrderDetailProps) {
             </div>
             <p className="text-xs font-semibold tracking-wider text-muted-foreground">
               TOTAL BOLS
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="border-amber-500/20 bg-amber-500/5 py-4">
+          <CardContent className="px-4">
+            <div className="text-2xl font-bold tabular-nums text-amber-600">
+              {inTransitBOLs}
+            </div>
+            <p className="text-xs font-semibold tracking-wider text-muted-foreground">
+              IN TRANSIT
             </p>
           </CardContent>
         </Card>
@@ -103,13 +136,13 @@ export function OrderDetail({ order }: OrderDetailProps) {
             </p>
           </CardContent>
         </Card>
-        <Card className="border-amber-500/20 bg-amber-500/5 py-4">
+        <Card className="border-blue-500/20 bg-blue-500/5 py-4">
           <CardContent className="px-4">
-            <div className="text-2xl font-bold tabular-nums text-amber-600">
-              {inTransitBOLs}
+            <div className="text-2xl font-bold tabular-nums text-blue-600">
+              {deliveringBOLs + deliveredBOLs}
             </div>
             <p className="text-xs font-semibold tracking-wider text-muted-foreground">
-              IN TRANSIT
+              DELIVERED
             </p>
           </CardContent>
         </Card>
@@ -125,7 +158,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
         </Card>
         <Card className="border-primary/20 bg-primary/5 py-4">
           <CardContent className="px-4">
-            <div className="text-2xl font-bold tabular-nums text-primary">
+            <div className="text-xl font-bold tabular-nums text-primary">
               {formatCurrency(order.totalAmount)}
             </div>
             <p className="text-xs font-semibold tracking-wider text-muted-foreground">
@@ -135,118 +168,187 @@ export function OrderDetail({ order }: OrderDetailProps) {
         </Card>
       </div>
 
-      {/* BOLs Table */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base font-semibold">
-            Bills of Lading ({order.bolCount})
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="w-10" />
-                <TableHead className="min-w-[200px]">INVOICE / BOL</TableHead>
-                <TableHead>STATUS</TableHead>
-                <TableHead>ETD</TableHead>
-                <TableHead>ETA</TableHead>
-                <TableHead className="text-center">CONTAINERS</TableHead>
-                <TableHead className="text-center">ITEMS</TableHead>
-                <TableHead className="text-right">VALUE</TableHead>
-                <TableHead className="text-right">WEIGHT</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {order.bols.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={9}
-                    className="h-32 text-center text-muted-foreground"
-                  >
-                    No BOLs associated with this order.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                order.bols.map((bol) => (
-                  <TableRow key={bol.id} className="group cursor-pointer">
-                    <TableCell className="pr-0">
-                      <Link
-                        href={`/bol/${encodeURIComponent(bol.bol)}`}
-                        className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors group-hover:bg-accent group-hover:text-foreground"
-                      >
-                        <ChevronRight className="size-4" />
-                      </Link>
-                    </TableCell>
-                    <TableCell>
-                      <Link href={`/bol/${encodeURIComponent(bol.bol)}`} className="block">
-                        <span className="block font-semibold text-foreground">
-                          {bol.invoice}
+      {/* BOLs List */}
+      <div>
+        <h2 className="mb-4 text-xs font-semibold tracking-wider text-muted-foreground">
+          BILLS OF LADING ({order.bolCount})
+        </h2>
+        <div className="flex flex-col gap-4">
+          {order.bols.length === 0 ? (
+            <Card>
+              <CardContent className="flex h-32 items-center justify-center text-muted-foreground">
+                No BOLs associated with this order.
+              </CardContent>
+            </Card>
+          ) : (
+            order.bols.map((bol) => {
+              const currentStep = getCurrentStep(bol.status)
+              return (
+                <Card key={bol.id}>
+                  <CardContent className="p-0">
+                    {/* BOL Header */}
+                    <Link
+                      href={`/bol/${encodeURIComponent(bol.bol)}`}
+                      className="flex items-center justify-between border-b px-5 py-4 transition-colors hover:bg-accent/50"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div>
+                          <span className="block font-semibold text-foreground">
+                            {bol.bol}
+                          </span>
+                          <span className="block text-xs text-muted-foreground">
+                            Invoice: {bol.invoice}
+                          </span>
+                        </div>
+                        <BOLStatusBadge status={bol.status} />
+                      </div>
+                      <div className="flex items-center gap-4 text-sm">
+                        <span className="text-muted-foreground">
+                          {bol.containerCount} containers
                         </span>
-                        <span className="block text-xs text-muted-foreground">
-                          {bol.bol}
+                        <span className="font-semibold text-foreground">
+                          {formatCurrency(bol.totalAmount)}
                         </span>
-                      </Link>
-                    </TableCell>
-                    <TableCell>
-                      <BOLStatusBadge status={bol.status} />
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {formatDate(bol.etd)}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {formatDate(bol.eta)}
-                    </TableCell>
-                    <TableCell className="text-center tabular-nums">
-                      {bol.containerCount}
-                    </TableCell>
-                    <TableCell className="text-center tabular-nums">
-                      {bol.itemCount}
-                    </TableCell>
-                    <TableCell className="text-right font-semibold tabular-nums text-foreground">
-                      {formatCurrency(bol.totalAmount)}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
-                      {formatWeight(bol.totalWeight)}
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                        <ChevronRight className="size-4 text-muted-foreground" />
+                      </div>
+                    </Link>
+
+                    {/* BOL Details */}
+                    <div className="px-5 py-4">
+                      <div className="mb-4 grid grid-cols-4 gap-4 text-sm">
+                        <div>
+                          <p className="text-xs font-semibold tracking-wider text-muted-foreground">
+                            ETD
+                          </p>
+                          <p className="font-medium text-foreground">
+                            {formatDate(bol.etd)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold tracking-wider text-muted-foreground">
+                            ETA
+                          </p>
+                          <p className="font-medium text-foreground">
+                            {formatDate(bol.eta)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold tracking-wider text-muted-foreground">
+                            ITEMS
+                          </p>
+                          <p className="font-medium text-foreground">
+                            {bol.itemCount}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold tracking-wider text-muted-foreground">
+                            WEIGHT
+                          </p>
+                          <p className="font-medium text-foreground">
+                            {formatWeight(bol.totalWeight)}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Mini Status Timeline */}
+                      <div className="flex items-center">
+                        {TIMELINE_STEPS.map((step, idx) => {
+                          const isCompleted = step.step <= currentStep
+                          const isActive = step.step === currentStep
+                          const isLast = idx === TIMELINE_STEPS.length - 1
+
+                          return (
+                            <div
+                              key={step.label}
+                              className={`flex items-center ${isLast ? "" : "flex-1"}`}
+                            >
+                              <div className="flex flex-col items-center gap-1">
+                                <div
+                                  className={`flex size-6 items-center justify-center rounded-full text-[10px] font-bold ${
+                                    isCompleted
+                                      ? isActive
+                                        ? "bg-primary text-primary-foreground"
+                                        : "bg-success text-success-foreground"
+                                      : "border border-border bg-card text-muted-foreground"
+                                  }`}
+                                >
+                                  {isCompleted && !isActive ? (
+                                    <Check className="size-3" />
+                                  ) : (
+                                    step.step + 1
+                                  )}
+                                </div>
+                                <span
+                                  className={`whitespace-nowrap text-[10px] font-medium ${
+                                    isCompleted
+                                      ? "text-foreground"
+                                      : "text-muted-foreground"
+                                  }`}
+                                >
+                                  {step.label}
+                                </span>
+                              </div>
+                              {!isLast && (
+                                <div
+                                  className={`mx-1 mt-[-14px] h-0.5 flex-1 rounded-full ${
+                                    step.step < currentStep
+                                      ? "bg-success"
+                                      : "bg-border"
+                                  }`}
+                                />
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })
+          )}
+        </div>
+      </div>
     </div>
   )
 }
 
-function BOLStatusBadge({ status }: { status: "Cleared" | "In Transit" | string }) {
+function BOLStatusBadge({ status }: { status: string }) {
   if (status === "Cleared" || status === "Customs Cleared") {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-md bg-success/10 px-2.5 py-1 text-xs font-medium text-success">
-        <svg
-          className="size-3.5"
-          viewBox="0 0 16 16"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <rect width="16" height="16" rx="3" fill="currentColor" fillOpacity="0.15" />
-          <path
-            d="M11.5 5.5L7 10.5L4.5 8"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
+      <Badge className="bg-success/10 text-success hover:bg-success/20">
+        <Check className="mr-1 size-3" />
         Customs Cleared
-      </span>
+      </Badge>
+    )
+  }
+  if (status === "Delivered" || status === "Closed") {
+    return (
+      <Badge className="bg-blue-500/10 text-blue-600 hover:bg-blue-500/20">
+        <Check className="mr-1 size-3" />
+        {status}
+      </Badge>
+    )
+  }
+  if (status === "Delivering") {
+    return (
+      <Badge className="bg-purple-500/10 text-purple-600 hover:bg-purple-500/20">
+        <Ship className="mr-1 size-3" />
+        Delivering
+      </Badge>
+    )
+  }
+  if (status === "Booked") {
+    return (
+      <Badge variant="outline" className="text-muted-foreground">
+        Booked
+      </Badge>
     )
   }
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-md bg-chart-3/10 px-2.5 py-1 text-xs font-medium text-chart-3">
-      <span className="size-2 animate-pulse rounded-full bg-chart-3" />
+    <Badge className="bg-amber-500/10 text-amber-600 hover:bg-amber-500/20">
+      <span className="mr-1.5 size-2 animate-pulse rounded-full bg-amber-500" />
       {status === "In Transit" ? "In Transit" : status}
-    </span>
+    </Badge>
   )
 }

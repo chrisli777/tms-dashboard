@@ -43,7 +43,7 @@ export function BOLTable({ data }: BOLTableProps) {
         <TableHeader>
           <TableRow className="hover:bg-transparent">
             <TableHead className="w-10" />
-            <TableHead className="min-w-[280px]">INVOICE / BOL</TableHead>
+            <TableHead className="min-w-[280px]">BOL / INVOICE</TableHead>
             <TableHead>SUPPLIER</TableHead>
             <TableHead className="text-center">CONTAINERS</TableHead>
             <TableHead>STATUS</TableHead>
@@ -84,10 +84,10 @@ export function BOLTable({ data }: BOLTableProps) {
                     className="block"
                   >
                     <span className="block font-semibold text-foreground">
-                      {row.invoice}
+                      {row.bol}
                     </span>
                     <span className="block text-xs text-muted-foreground">
-                      {row.bol}
+                      {row.invoice}
                     </span>
                   </Link>
                 </TableCell>

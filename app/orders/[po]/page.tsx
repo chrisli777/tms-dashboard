@@ -21,6 +21,7 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
       title={`PO-${order.poNumber}`}
       description="Order details and associated shipments"
       icon={<FileText className="h-8 w-8" />}
+      backHref="/"
     >
       <OrderDetail order={order} />
     </SidebarLayout>

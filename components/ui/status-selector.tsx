@@ -26,6 +26,12 @@ export const ORDER_STATUSES = [
   { value: "Completed", label: "Completed" },
 ] as const
 
+// Container statuses
+export const CONTAINER_STATUSES = [
+  { value: "Scheduled", label: "Scheduled" },
+  { value: "Delivered", label: "Delivered" },
+] as const
+
 interface StatusSelectorProps {
   currentStatus: string
   statuses: readonly { value: string; label: string }[]

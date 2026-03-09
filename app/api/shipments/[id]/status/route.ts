@@ -18,6 +18,15 @@ export async function PATCH(
       )
     }
 
+    // Valid shipment statuses
+    const validStatuses = ["Booked", "On Water", "Customs Cleared", "Delivering", "Delivered", "Closed"]
+    if (!validStatuses.includes(status)) {
+      return NextResponse.json(
+        { error: "Invalid status" },
+        { status: 400 }
+      )
+    }
+
     // Update shipment status
     const { error: shipmentError } = await supabase
       .from("shipments")
@@ -33,16 +42,29 @@ export async function PATCH(
     }
 
     // Map shipment status to container status
-    const containerStatus = status === "Customs Cleared" ? "Customs Cleared" : "On Water"
+    // Container status is separate - only changes if explicitly set
+    // But we can set initial container status based on shipment status
+    let containerStatus: string | null = null
+    if (status === "Customs Cleared") {
+      containerStatus = "Customs Cleared"
+    } else if (status === "Delivering") {
+      containerStatus = "Scheduled"
+    } else if (status === "Delivered" || status === "Closed") {
+      containerStatus = "Delivered"
+    } else if (status === "Booked" || status === "On Water") {
+      containerStatus = status
+    }
 
-    // Update all containers in this shipment
-    const { error: containerError } = await supabase
-      .from("containers")
-      .update({ status: containerStatus })
-      .eq("shipment_id", id)
+    // Only update container status if needed
+    if (containerStatus) {
+      const { error: containerError } = await supabase
+        .from("containers")
+        .update({ status: containerStatus })
+        .eq("shipment_id", id)
 
-    if (containerError) {
-      console.error("Failed to update containers:", containerError)
+      if (containerError) {
+        console.error("Failed to update containers:", containerError)
+      }
     }
 
     return NextResponse.json({ success: true })
