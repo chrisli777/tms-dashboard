@@ -18,10 +18,10 @@ export async function PATCH(
       )
     }
 
-    // Container can only be "Scheduled" or "Delivered"
-    if (!["Scheduled", "Delivered"].includes(status)) {
+    // Container can be "Customs Cleared", "Scheduled", or "Delivered"
+    if (!["Customs Cleared", "Scheduled", "Delivered"].includes(status)) {
       return NextResponse.json(
-        { error: "Invalid container status. Must be 'Scheduled' or 'Delivered'" },
+        { error: "Invalid container status. Must be 'Customs Cleared', 'Scheduled', or 'Delivered'" },
         { status: 400 }
       )
     }

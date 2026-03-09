@@ -28,13 +28,14 @@ function formatWeight(value: number) {
 export function DispatchKPICards({ data }: DispatchKPICardsProps) {
   const stats = useMemo(() => {
     const totalContainers = data.length
-    const inTransit = data.filter((c) => c.status === "In Transit").length
-    const cleared = data.filter((c) => c.status === "Cleared").length
+    const customsCleared = data.filter((c) => c.status === "Customs Cleared").length
+    const scheduled = data.filter((c) => c.status === "Scheduled").length
+    const delivered = data.filter((c) => c.status === "Delivered").length
     const totalQty = data.reduce((sum, c) => sum + c.totalQty, 0)
     const totalWeight = data.reduce((sum, c) => sum + c.totalWeight, 0)
     const totalValue = data.reduce((sum, c) => sum + c.totalAmount, 0)
 
-    return { totalContainers, inTransit, cleared, totalQty, totalWeight, totalValue }
+    return { totalContainers, customsCleared, scheduled, delivered, totalQty, totalWeight, totalValue }
   }, [data])
 
   const cards = [
@@ -50,8 +51,19 @@ export function DispatchKPICards({ data }: DispatchKPICardsProps) {
       ),
     },
     {
-      label: "IN TRANSIT",
-      value: stats.inTransit,
+      label: "CUSTOMS CLEARED",
+      value: stats.customsCleared,
+      color: "text-blue-600",
+      bgColor: "bg-blue-50",
+      icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+        </svg>
+      ),
+    },
+    {
+      label: "SCHEDULED",
+      value: stats.scheduled,
       color: "text-amber-600",
       bgColor: "bg-amber-50",
       icon: (
@@ -61,8 +73,8 @@ export function DispatchKPICards({ data }: DispatchKPICardsProps) {
       ),
     },
     {
-      label: "CLEARED",
-      value: stats.cleared,
+      label: "DELIVERED",
+      value: stats.delivered,
       color: "text-emerald-600",
       bgColor: "bg-emerald-50",
       icon: (

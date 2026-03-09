@@ -18,26 +18,27 @@ interface DispatchTableProps {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  if (status === "Customs Cleared" || status === "Cleared" || status === "Delivered" || status === "Closed") {
+  if (status === "Delivered") {
     return (
       <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
         <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
-        {status === "Cleared" ? "Customs Cleared" : status}
+        Delivered
       </Badge>
     )
   }
-  if (status === "Booked") {
+  if (status === "Scheduled") {
     return (
-      <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700">
-        <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-slate-500" />
-        Booked
+      <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
+        <span className="mr-1.5 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-amber-500" />
+        Scheduled
       </Badge>
     )
   }
+  // Customs Cleared
   return (
-    <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
-      <span className="mr-1.5 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-amber-500" />
-      {status === "In Transit" ? "In Transit" : status}
+    <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
+      <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-blue-500" />
+      Customs Cleared
     </Badge>
   )
 }

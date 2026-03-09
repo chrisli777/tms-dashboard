@@ -26,8 +26,9 @@ export const ORDER_STATUSES = [
   { value: "Completed", label: "Completed" },
 ] as const
 
-// Container statuses
+// Container statuses (for dispatch - after Customs Cleared)
 export const CONTAINER_STATUSES = [
+  { value: "Customs Cleared", label: "Customs Cleared" },
   { value: "Scheduled", label: "Scheduled" },
   { value: "Delivered", label: "Delivered" },
 ] as const

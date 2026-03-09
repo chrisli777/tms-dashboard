@@ -6,7 +6,7 @@ export interface DispatchContainer {
   id: string
   container: string
   type: string
-  status: "Cleared" | "In Transit"
+  status: "Customs Cleared" | "Scheduled" | "Delivered"
   shipmentId: string
   invoice: string
   bol: string
@@ -32,6 +32,8 @@ export interface DispatchContainer {
 export async function fetchAllContainers(): Promise<DispatchContainer[]> {
   const supabase = await createClient()
 
+  // Only fetch containers that are Customs Cleared, Scheduled, or Delivered
+  // Containers with "On Water" or "Booked" status should NOT appear in dispatch
   const { data: containers, error } = await supabase
     .from("containers")
     .select(`
@@ -57,6 +59,7 @@ export async function fetchAllContainers(): Promise<DispatchContainer[]> {
         whi_po
       )
     `)
+    .in("status", ["Customs Cleared", "Scheduled", "Delivered"])
     .order("container", { ascending: true })
 
   if (error) {
@@ -72,7 +75,7 @@ export async function fetchAllContainers(): Promise<DispatchContainer[]> {
       id: c.id,
       container: c.container,
       type: c.type,
-      status: c.status as "Cleared" | "In Transit",
+      status: c.status as "Customs Cleared" | "Scheduled" | "Delivered",
       shipmentId: c.shipment_id,
       invoice: (shipment?.invoice as string) ?? "",
       bol: (shipment?.bol as string) ?? "",

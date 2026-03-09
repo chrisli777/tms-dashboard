@@ -69,6 +69,7 @@ function formatCurrency(value: number) {
 }
 
 const CONTAINER_STATUSES = [
+  { value: "Customs Cleared", label: "Customs Cleared" },
   { value: "Scheduled", label: "Scheduled" },
   { value: "Delivered", label: "Delivered" },
 ] as const
@@ -78,7 +79,11 @@ export function ContainerDetail({ container, shipment }: ContainerDetailProps) {
   const { mutate } = useSWRConfig()
   const [isUpdating, setIsUpdating] = useState(false)
   const [currentStatus, setCurrentStatus] = useState(
-    container.status === "Delivered" ? "Delivered" : "Scheduled"
+    container.status === "Delivered" 
+      ? "Delivered" 
+      : container.status === "Scheduled" 
+        ? "Scheduled" 
+        : "Customs Cleared"
   )
 
   const totalAmount = container.container_items.reduce(
@@ -154,7 +159,9 @@ export function ContainerDetail({ container, shipment }: ContainerDetailProps) {
                   currentStatus === status.value
                     ? status.value === "Delivered"
                       ? "bg-success hover:bg-success/90"
-                      : "bg-amber-500 hover:bg-amber-600"
+                      : status.value === "Scheduled"
+                        ? "bg-amber-500 hover:bg-amber-600"
+                        : "bg-blue-500 hover:bg-blue-600"
                     : ""
                 }`}
                 onClick={() => handleStatusChange(status.value)}
@@ -174,7 +181,9 @@ export function ContainerDetail({ container, shipment }: ContainerDetailProps) {
           <p className="mt-3 text-sm text-muted-foreground">
             {currentStatus === "Delivered"
               ? "This container has been delivered to the warehouse."
-              : "This container is scheduled for delivery."}
+              : currentStatus === "Scheduled"
+                ? "This container is scheduled for delivery."
+                : "This container has cleared customs and is ready for scheduling."}
           </p>
         </CardContent>
       </Card>

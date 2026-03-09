@@ -46,8 +46,9 @@ export function DispatchDashboard({ initialData }: DispatchDashboardProps) {
     )
     return {
       all: filtered.length,
-      inTransit: filtered.filter((c) => c.status === "In Transit").length,
-      cleared: filtered.filter((c) => c.status === "Cleared").length,
+      customsCleared: filtered.filter((c) => c.status === "Customs Cleared").length,
+      scheduled: filtered.filter((c) => c.status === "Scheduled").length,
+      delivered: filtered.filter((c) => c.status === "Delivered").length,
     }
   }, [initialData, typeFilter])
 
