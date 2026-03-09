@@ -1,6 +1,5 @@
 "use client"
 
-import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import {
   Table,
@@ -11,7 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, Ship, Check } from "lucide-react"
+import { Ship, Check } from "lucide-react"
 import type { BOLSummary } from "@/lib/bol-data"
 
 interface BOLDetailProps {
@@ -55,51 +54,26 @@ export function BOLDetail({ summary }: BOLDetailProps) {
   )
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b bg-card">
-        <div className="mx-auto max-w-[1440px] px-6 py-5">
-          <div className="flex items-center gap-4">
-            <Link
-              href="/"
-              className="flex size-9 items-center justify-center rounded-lg border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            >
-              <ArrowLeft className="size-4" />
-            </Link>
-            <div className="flex flex-1 items-start justify-between">
-              <div>
-                <h1 className="text-xl font-bold tracking-tight text-card-foreground">
-                  {summary.invoice}
-                </h1>
-                <p className="font-mono text-sm text-muted-foreground">
-                  {summary.bol}
-                </p>
-              </div>
-              <div className="flex items-center gap-6 text-sm">
-                <span className="font-medium text-primary">
-                  {summary.supplier}
-                </span>
-                <span className="tabular-nums text-muted-foreground">
-                  {summary.containerCount} containers
-                </span>
-                <StatusBadge status={summary.status} />
-                <span className="text-muted-foreground">
-                  {formatDate(summary.etd)}
-                </span>
-                <span className="text-muted-foreground">
-                  {formatDate(summary.eta)}
-                </span>
-                <span className="font-semibold tabular-nums text-foreground">
-                  {formatCurrency(summary.totalAmount)}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-[1440px] px-6 py-6">
-        <div className="flex flex-col gap-6">
+    <div className="flex flex-1 flex-col gap-6 p-6">
+      {/* Info bar */}
+      <div className="flex flex-wrap items-center gap-4 text-sm">
+        <span className="font-medium text-primary">
+          {summary.supplier}
+        </span>
+        <span className="tabular-nums text-muted-foreground">
+          {summary.containerCount} containers
+        </span>
+        <StatusBadge status={summary.status} />
+        <span className="text-muted-foreground">
+          ETD: {formatDate(summary.etd)}
+        </span>
+        <span className="text-muted-foreground">
+          ETA: {formatDate(summary.eta)}
+        </span>
+        <span className="font-semibold tabular-nums text-foreground">
+          {formatCurrency(summary.totalAmount)}
+        </span>
+      </div>
           {/* Status Timeline */}
           <Card>
             <CardContent className="px-6 py-5">
@@ -282,7 +256,7 @@ export function BOLDetail({ summary }: BOLDetailProps) {
             </div>
           </div>
         </div>
-      </main>
+      </div>
     </div>
   )
 }

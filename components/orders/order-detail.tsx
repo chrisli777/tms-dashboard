@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { ArrowLeft, ChevronRight } from "lucide-react"
+import { ChevronRight } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Table,
@@ -42,33 +42,17 @@ export function OrderDetail({ order }: OrderDetailProps) {
   const inTransitBOLs = order.bols.filter((b) => b.status === "In Transit").length
 
   return (
-    <main className="min-h-screen bg-background">
-      <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6 lg:px-8">
-        {/* Back button and header */}
-        <div className="mb-6">
-          <Link
-            href="/"
-            className="mb-4 inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <ArrowLeft className="size-4" />
-            Back to Orders
-          </Link>
+    <div className="flex flex-1 flex-col gap-6 p-6">
+      {/* Order info header */}
+      <div className="flex items-start justify-between">
+        <p className="text-sm text-muted-foreground">
+          {order.supplier} • {order.customer} • Order Date: {formatDate(order.orderDate)}
+        </p>
+        <OrderStatusBadge status={order.status} />
+      </div>
 
-          <div className="flex items-start justify-between">
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight text-foreground">
-                PO-{order.poNumber}
-              </h1>
-              <p className="text-sm text-muted-foreground">
-                {order.supplier} • {order.customer} • Order Date: {formatDate(order.orderDate)}
-              </p>
-            </div>
-            <OrderStatusBadge status={order.status} />
-          </div>
-        </div>
-
-        {/* Summary Cards */}
-        <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-5">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
           <Card className="border-primary/20 bg-primary/5 py-4">
             <CardContent className="px-4">
               <div className="text-2xl font-bold tabular-nums text-primary">
@@ -203,7 +187,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
           </CardContent>
         </Card>
       </div>
-    </main>
+    </div>
   )
 }
 
