@@ -1,7 +1,7 @@
-import { fetchAllBOLSummaries } from "@/lib/bol-data"
-import { BOLDashboard } from "@/components/dashboard/bol-dashboard"
+import { OrderDashboard } from "@/components/orders/order-dashboard"
+import { fetchAllOrders } from "@/lib/order-data"
 
-export default async function Page() {
-  const summaries = await fetchAllBOLSummaries()
-  return <BOLDashboard initialData={summaries} />
+export default async function HomePage() {
+  const orders = await fetchAllOrders()
+  return <OrderDashboard initialData={orders} />
 }

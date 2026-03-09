@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useMemo } from "react"
+import Link from "next/link"
 import type { BOLSummary } from "@/lib/bol-data"
 import { KPICards } from "./kpi-cards"
 import { FilterBar } from "./filter-bar"
@@ -54,18 +55,26 @@ export function BOLDashboard({ initialData }: BOLDashboardProps) {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
-        <div className="mx-auto flex max-w-[1440px] items-center gap-3 px-6 py-5">
-          <div className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Ship className="size-5" />
+        <div className="mx-auto flex max-w-[1440px] items-center justify-between px-6 py-5">
+          <div className="flex items-center gap-3">
+            <div className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+              <Ship className="size-5" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold tracking-tight text-card-foreground">
+                Shipment Tracking
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                Track shipments from origin to warehouse delivery
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-xl font-bold tracking-tight text-card-foreground">
-              Shipment Tracking
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Track shipments from origin to warehouse delivery
-            </p>
-          </div>
+          <Link
+            href="/"
+            className="rounded-md border bg-card px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+          >
+            Back to Orders
+          </Link>
         </div>
       </header>
 

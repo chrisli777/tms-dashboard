@@ -7,8 +7,8 @@ const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'Shipment Tracking',
-  description: 'Track shipments from origin to warehouse delivery - manage BOLs, containers, and SKUs',
+  title: 'TMS Dashboard',
+  description: 'Transportation Management System - Track orders, shipments, BOLs, containers, and SKUs',
   generator: 'v0.app',
   icons: {
     icon: [
