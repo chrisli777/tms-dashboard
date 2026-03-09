@@ -42,7 +42,7 @@ const TIMELINE_STEPS = [
   { label: "Booked", step: 0 },
   { label: "On Water", step: 1 },
   { label: "Customs Cleared", step: 2 },
-  { label: "Scheduled", step: 3 },
+  { label: "Delivering", step: 3 },
   { label: "Delivered", step: 4 },
   { label: "Closed", step: 5 },
 ]
@@ -52,7 +52,7 @@ function getCurrentStep(status: string) {
     "Booked": 0,
     "On Water": 1,
     "Customs Cleared": 2,
-    "Scheduled": 3,
+    "Delivering": 3,
     "Delivered": 4,
     "Closed": 5,
   }

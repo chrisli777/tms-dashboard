@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { NextResponse } from "next/server"
 
 export async function PATCH(
@@ -6,10 +6,13 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
-  const supabase = await createClient()
+  // Use admin client to bypass RLS
+  const supabase = createAdminClient()
 
   try {
     const { status } = await request.json()
+
+    console.log("[v0] Updating order status:", { id, status })
 
     if (!status) {
       return NextResponse.json(
@@ -19,22 +22,24 @@ export async function PATCH(
     }
 
     // Update order status
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("orders")
       .update({ status })
       .eq("id", id)
+      .select()
 
     if (error) {
-      console.error("Failed to update order:", error)
+      console.error("[v0] Failed to update order:", error)
       return NextResponse.json(
-        { error: "Failed to update order status" },
+        { error: "Failed to update order status", details: error.message },
         { status: 500 }
       )
     }
 
-    return NextResponse.json({ success: true })
+    console.log("[v0] Order updated:", data)
+    return NextResponse.json({ success: true, order: data })
   } catch (error) {
-    console.error("Error updating order status:", error)
+    console.error("[v0] Error updating order status:", error)
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

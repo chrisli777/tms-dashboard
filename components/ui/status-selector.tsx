@@ -10,12 +10,12 @@ import {
 } from "@/components/ui/select"
 import { Loader2 } from "lucide-react"
 
-// Shipment/BOL statuses
+// Shipment/BOL statuses (BOL uses "Delivering", not "Scheduled")
 export const SHIPMENT_STATUSES = [
   { value: "Booked", label: "Booked" },
   { value: "On Water", label: "On Water" },
   { value: "Customs Cleared", label: "Customs Cleared" },
-  { value: "Scheduled", label: "Scheduled" },
+  { value: "Delivering", label: "Delivering" },
   { value: "Delivered", label: "Delivered" },
   { value: "Closed", label: "Closed" },
 ] as const
@@ -26,8 +26,10 @@ export const ORDER_STATUSES = [
   { value: "Completed", label: "Completed" },
 ] as const
 
-// Container statuses (for dispatch - after Customs Cleared)
+// Container statuses - same as BOL but uses "Scheduled" instead of "Delivering"
 export const CONTAINER_STATUSES = [
+  { value: "Booked", label: "Booked" },
+  { value: "On Water", label: "On Water" },
   { value: "Customs Cleared", label: "Customs Cleared" },
   { value: "Scheduled", label: "Scheduled" },
   { value: "Delivered", label: "Delivered" },

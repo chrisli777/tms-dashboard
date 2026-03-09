@@ -68,7 +68,10 @@ function formatCurrency(value: number) {
   })}`
 }
 
+// Container statuses - same as BOL but uses "Scheduled" instead of "Delivering"
 const CONTAINER_STATUSES = [
+  { value: "Booked", label: "Booked" },
+  { value: "On Water", label: "On Water" },
   { value: "Customs Cleared", label: "Customs Cleared" },
   { value: "Scheduled", label: "Scheduled" },
   { value: "Delivered", label: "Delivered" },
@@ -78,13 +81,8 @@ export function ContainerDetail({ container, shipment }: ContainerDetailProps) {
   const router = useRouter()
   const { mutate } = useSWRConfig()
   const [isUpdating, setIsUpdating] = useState(false)
-  const [currentStatus, setCurrentStatus] = useState(
-    container.status === "Delivered" 
-      ? "Delivered" 
-      : container.status === "Scheduled" 
-        ? "Scheduled" 
-        : "Customs Cleared"
-  )
+  // Initialize with actual container status from DB
+  const [currentStatus, setCurrentStatus] = useState(container.status)
 
   const totalAmount = container.container_items.reduce(
     (sum, i) => sum + i.amount_usd,
@@ -150,40 +148,48 @@ export function ContainerDetail({ container, shipment }: ContainerDetailProps) {
           <h2 className="mb-4 text-xs font-semibold tracking-wider text-muted-foreground">
             CONTAINER DELIVERY STATUS
           </h2>
-          <div className="flex items-center gap-6">
-            {CONTAINER_STATUSES.map((status) => (
-              <Button
-                key={status.value}
-                variant={currentStatus === status.value ? "default" : "outline"}
-                className={`gap-2 ${
-                  currentStatus === status.value
-                    ? status.value === "Delivered"
-                      ? "bg-success hover:bg-success/90"
-                      : status.value === "Scheduled"
-                        ? "bg-amber-500 hover:bg-amber-600"
-                        : "bg-blue-500 hover:bg-blue-600"
-                    : ""
-                }`}
-                onClick={() => handleStatusChange(status.value)}
-                disabled={isUpdating}
-              >
-                {isUpdating ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : status.value === "Delivered" ? (
-                  <Check className="size-4" />
-                ) : (
-                  <Truck className="size-4" />
-                )}
-                {status.label}
-              </Button>
-            ))}
+          <div className="flex flex-wrap items-center gap-3">
+            {CONTAINER_STATUSES.map((status) => {
+              const isActive = currentStatus === status.value
+              let bgClass = ""
+              if (isActive) {
+                if (status.value === "Delivered") bgClass = "bg-success hover:bg-success/90"
+                else if (status.value === "Scheduled") bgClass = "bg-amber-500 hover:bg-amber-600"
+                else if (status.value === "Customs Cleared") bgClass = "bg-blue-500 hover:bg-blue-600"
+                else if (status.value === "On Water") bgClass = "bg-cyan-500 hover:bg-cyan-600"
+                else bgClass = "bg-slate-500 hover:bg-slate-600"
+              }
+              return (
+                <Button
+                  key={status.value}
+                  variant={isActive ? "default" : "outline"}
+                  size="sm"
+                  className={`gap-2 ${bgClass}`}
+                  onClick={() => handleStatusChange(status.value)}
+                  disabled={isUpdating}
+                >
+                  {isUpdating && currentStatus === status.value ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : status.value === "Delivered" ? (
+                    <Check className="size-4" />
+                  ) : (
+                    <Truck className="size-4" />
+                  )}
+                  {status.label}
+                </Button>
+              )
+            })}
           </div>
           <p className="mt-3 text-sm text-muted-foreground">
             {currentStatus === "Delivered"
               ? "This container has been delivered to the warehouse."
               : currentStatus === "Scheduled"
                 ? "This container is scheduled for delivery."
-                : "This container has cleared customs and is ready for scheduling."}
+                : currentStatus === "Customs Cleared"
+                  ? "This container has cleared customs and is ready for scheduling."
+                  : currentStatus === "On Water"
+                    ? "This container is in transit on the water."
+                    : "This container is booked and awaiting shipment."}
           </p>
         </CardContent>
       </Card>

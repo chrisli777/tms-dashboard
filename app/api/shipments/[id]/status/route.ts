@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { NextResponse } from "next/server"
 
 export async function PATCH(
@@ -6,7 +6,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
-  const supabase = await createClient()
+  // Use admin client to bypass RLS
+  const supabase = createAdminClient()
 
   try {
     const { status } = await request.json()
@@ -20,8 +21,8 @@ export async function PATCH(
       )
     }
 
-    // Valid shipment statuses (Delivering renamed to Scheduled)
-    const validStatuses = ["Booked", "On Water", "Customs Cleared", "Scheduled", "Delivered", "Closed"]
+    // Valid shipment/BOL statuses (BOL uses "Delivering", not "Scheduled")
+    const validStatuses = ["Booked", "On Water", "Customs Cleared", "Delivering", "Delivered", "Closed"]
     if (!validStatuses.includes(status)) {
       console.log("[v0] Invalid status:", status)
       return NextResponse.json(
@@ -40,23 +41,26 @@ export async function PATCH(
     if (shipmentError) {
       console.error("[v0] Failed to update shipment:", shipmentError)
       return NextResponse.json(
-        { error: "Failed to update shipment status" },
+        { error: "Failed to update shipment status", details: shipmentError.message },
         { status: 500 }
       )
     }
 
     console.log("[v0] Shipment updated:", shipmentData)
 
-    // Map shipment status to container status - sync all containers
-    // When BOL status changes, all its containers should match
+    // Map BOL status to container status
+    // Before Customs Cleared: container and BOL statuses are synced
+    // From Customs Cleared onwards: containers can have different statuses
+    // BOL "Delivering" maps to container "Scheduled"
+    // BOL "Closed" maps to container "Delivered"
     let containerStatus: string = status
-    // Container statuses: Booked, On Water, Customs Cleared, Scheduled, Delivered
-    // Map Closed to Delivered for containers
-    if (status === "Closed") {
+    if (status === "Delivering") {
+      containerStatus = "Scheduled"
+    } else if (status === "Closed") {
       containerStatus = "Delivered"
     }
 
-    // Update all containers for this shipment
+    // Update all containers for this shipment (syncs before Customs Cleared)
     const { data: containerData, error: containerError } = await supabase
       .from("containers")
       .update({ status: containerStatus })
