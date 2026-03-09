@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutGrid, Ship, ChevronLeft, ChevronRight } from "lucide-react"
+import { LayoutGrid, Ship, Truck, ChevronLeft, ChevronRight } from "lucide-react"
 import { useSidebar } from "@/components/ui/sidebar"
 import {
   Sidebar,
@@ -24,6 +24,11 @@ const navItems = [
     href: "/shipments",
     icon: Ship,
   },
+  {
+    title: "Dispatcher",
+    href: "/dispatch",
+    icon: Truck,
+  },
 ]
 
 export function AppSidebar() {
@@ -33,6 +38,9 @@ export function AppSidebar() {
   const isActive = (href: string) => {
     if (href === "/") {
       return pathname === "/" || pathname.startsWith("/orders")
+    }
+    if (href === "/shipments") {
+      return pathname.startsWith("/shipments") || pathname.startsWith("/bol")
     }
     return pathname.startsWith(href)
   }
