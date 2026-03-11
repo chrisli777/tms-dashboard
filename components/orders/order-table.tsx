@@ -180,7 +180,7 @@ function OrderStatusBadge({ status }: { status: string }) {
 
 function ProgressCell({ order }: { order: OrderSummary }) {
   // For pending orders, show progress based on pending items
-  if (order.status === "Pending" && order.pendingItems.length > 0) {
+  if (order.status === "Pending" && order.pendingItems?.length > 0) {
     return (
       <div className="flex flex-col gap-1">
         <div className="flex items-center justify-between text-xs">
