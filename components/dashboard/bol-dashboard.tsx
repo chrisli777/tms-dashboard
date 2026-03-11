@@ -23,15 +23,17 @@ export function BOLDashboard({ initialData }: BOLDashboardProps) {
   const counts = useMemo(
     () => ({
       all: initialData.length,
-      inTransit: initialData.filter((r) => r.status === "In Transit").length,
-      cleared: initialData.filter((r) => r.status === "Cleared").length,
+      inTransit: initialData.filter((r) => r.status === "On Water" || r.status === "Booked").length,
+      cleared: initialData.filter((r) => r.status === "Customs Cleared").length,
     }),
     [initialData]
   )
 
   const filtered = useMemo(() => {
     return initialData.filter((r) => {
-      if (statusFilter !== "all" && r.status !== statusFilter) return false
+      // Map filter values to actual status values
+      if (statusFilter === "In Transit" && r.status !== "On Water" && r.status !== "Booked") return false
+      if (statusFilter === "Cleared" && r.status !== "Customs Cleared") return false
       if (supplierFilter !== "all" && r.supplier !== supplierFilter) return false
       if (search) {
         const q = search.toLowerCase()
