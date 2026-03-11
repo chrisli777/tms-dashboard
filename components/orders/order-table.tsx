@@ -180,41 +180,35 @@ function OrderStatusBadge({ status }: { status: string }) {
 }
 
 function ProgressCell({ order }: { order: OrderSummary }) {
-  // For pending orders, show progress based on pending items
-  if (order.status === "Pending" && order.pendingItems?.length > 0) {
+  // All orders show unit-based progress
+  const totalOrdered = order.totalQtyOrdered ?? 0
+  const totalReceived = order.totalQtyReceived ?? 0
+  const percent = order.progressPercent ?? 100
+
+  if (totalOrdered === 0 && order.status !== "Pending") {
+    // Fallback for orders without qty data - show as complete
     return (
       <div className="flex flex-col gap-1">
         <div className="flex items-center justify-between text-xs">
-          <span className="text-muted-foreground">
-            {order.totalQtyReceived.toLocaleString()} / {order.totalQtyOrdered.toLocaleString()} units
-          </span>
-          <span className="font-medium">{order.progressPercent}%</span>
+          <span className="text-muted-foreground">Complete</span>
+          <span className="font-medium">100%</span>
         </div>
-        <Progress value={order.progressPercent} className="h-2" />
+        <Progress value={100} className="h-2" />
       </div>
     )
   }
-  
-  // For in-progress orders, show BOL-based progress
-  if (order.bolCount > 0) {
-    const deliveredBOLs = order.bols.filter(b => 
-      b.status === "Delivered" || b.status === "Closed"
-    ).length
-    const percent = Math.round((deliveredBOLs / order.bolCount) * 100)
-    return (
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center justify-between text-xs">
-          <span className="text-muted-foreground">
-            {deliveredBOLs} / {order.bolCount} BOLs delivered
-          </span>
-          <span className="font-medium">{percent}%</span>
-        </div>
-        <Progress value={percent} className="h-2" />
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center justify-between text-xs">
+        <span className="text-muted-foreground">
+          {totalReceived.toLocaleString()} / {totalOrdered.toLocaleString()} units
+        </span>
+        <span className="font-medium">{percent}%</span>
       </div>
-    )
-  }
-  
-  return <span className="text-xs text-muted-foreground">-</span>
+      <Progress value={percent} className="h-2" />
+    </div>
+  )
 }
 
 function DueDateCell({ order }: { order: OrderSummary }) {

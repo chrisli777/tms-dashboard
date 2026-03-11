@@ -46,6 +46,7 @@ export function OrderDashboard({ initialData }: OrderDashboardProps) {
     )
     return {
       all: filtered.length,
+      pending: filtered.filter((o) => o.status === "Pending").length,
       inProgress: filtered.filter((o) => o.status === "In Progress").length,
       completed: filtered.filter((o) => o.status === "Completed").length,
     }

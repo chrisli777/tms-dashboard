@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useSWRConfig } from "swr"
-import { ChevronRight, Check, Ship, AlertTriangle, Package } from "lucide-react"
+import { ChevronRight, Check, Ship, AlertTriangle, Package, Calendar, TrendingUp } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
@@ -119,14 +119,9 @@ export function OrderDetail({ order }: OrderDetailProps) {
     <div className="flex flex-1 flex-col gap-6 p-6">
       {/* Order info header */}
       <div className="flex items-start justify-between">
-        <div className="space-y-1">
-          <p className="text-sm text-muted-foreground">
-            <span className="font-medium text-foreground">Supplier:</span> {order.supplier} • <span className="font-medium text-foreground">Customer:</span> {order.customer} • Order Date: {formatDate(order.orderDate)}
-          </p>
-          {order.dueDate && (
-            <DueDateDisplay dueDate={order.dueDate} isComplete={order.progressPercent === 100 || order.status === "Completed"} />
-          )}
-        </div>
+        <p className="text-sm text-muted-foreground">
+          <span className="font-medium text-foreground">Supplier:</span> {order.supplier} • <span className="font-medium text-foreground">Customer:</span> {order.customer} • Order Date: {formatDate(order.orderDate)}
+        </p>
         <StatusSelector
           currentStatus={currentStatus}
           statuses={ORDER_STATUSES}
@@ -134,8 +129,61 @@ export function OrderDetail({ order }: OrderDetailProps) {
         />
       </div>
 
+      {/* Progress and Due Date Cards - Side by Side */}
+      <div className="grid gap-4 md:grid-cols-2">
+        {/* Order Progress Card */}
+        <Card className="border-primary/20">
+          <CardContent className="p-5">
+            <div className="mb-3 flex items-center gap-2">
+              <div className="flex size-8 items-center justify-center rounded-full bg-primary/10">
+                <TrendingUp className="size-4 text-primary" />
+              </div>
+              <h3 className="font-semibold text-foreground">Order Execution Progress</h3>
+            </div>
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">
+                {order.totalQtyReceived?.toLocaleString() ?? 0} of {order.totalQtyOrdered?.toLocaleString() ?? 0} units
+              </p>
+              <span className="text-2xl font-bold text-primary">{order.progressPercent ?? 100}%</span>
+            </div>
+            <Progress value={order.progressPercent ?? 100} className="h-3" />
+          </CardContent>
+        </Card>
+
+        {/* Due Date Card */}
+        <Card className={`${
+          order.status === "Completed" || (order.progressPercent ?? 100) === 100
+            ? "border-success/20"
+            : order.dueDate && getDaysRemaining(order.dueDate)?.isUrgent
+              ? "border-destructive/20"
+              : "border-border"
+        }`}>
+          <CardContent className="p-5">
+            <div className="mb-3 flex items-center gap-2">
+              <div className={`flex size-8 items-center justify-center rounded-full ${
+                order.status === "Completed" || (order.progressPercent ?? 100) === 100
+                  ? "bg-success/10"
+                  : order.dueDate && getDaysRemaining(order.dueDate)?.isUrgent
+                    ? "bg-destructive/10"
+                    : "bg-muted"
+              }`}>
+                <Calendar className={`size-4 ${
+                  order.status === "Completed" || (order.progressPercent ?? 100) === 100
+                    ? "text-success"
+                    : order.dueDate && getDaysRemaining(order.dueDate)?.isUrgent
+                      ? "text-destructive"
+                      : "text-muted-foreground"
+                }`} />
+              </div>
+              <h3 className="font-semibold text-foreground">Due Date</h3>
+            </div>
+            <DueDateCardContent dueDate={order.dueDate} isComplete={order.status === "Completed" || (order.progressPercent ?? 100) === 100} />
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-6">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
         <Card className="border-primary/20 bg-primary/5 py-4">
           <CardContent className="px-4">
             <div className="text-2xl font-bold tabular-nums text-primary">
@@ -166,16 +214,6 @@ export function OrderDetail({ order }: OrderDetailProps) {
             </p>
           </CardContent>
         </Card>
-        <Card className="border-blue-500/20 bg-blue-500/5 py-4">
-          <CardContent className="px-4">
-            <div className="text-2xl font-bold tabular-nums text-blue-600">
-              {deliveringBOLs + deliveredBOLs}
-            </div>
-            <p className="text-xs font-semibold tracking-wider text-muted-foreground">
-              DELIVERED
-            </p>
-          </CardContent>
-        </Card>
         <Card className="border-primary/20 bg-primary/5 py-4">
           <CardContent className="px-4">
             <div className="text-2xl font-bold tabular-nums text-primary">
@@ -199,30 +237,12 @@ export function OrderDetail({ order }: OrderDetailProps) {
       </div>
 
       {/* Pending Items Section (for Pending orders) */}
-      {order.status === "Pending" && order.pendingItems.length > 0 && (
+      {order.status === "Pending" && order.pendingItems && order.pendingItems.length > 0 && (
         <div>
           <h2 className="mb-4 text-xs font-semibold tracking-wider text-muted-foreground">
             PENDING ITEMS ({order.pendingItems.length} SKUs)
           </h2>
           
-          {/* Progress Bar */}
-          <Card className="mb-4">
-            <CardContent className="p-5">
-              <div className="mb-4 flex items-center justify-between">
-                <div>
-                  <h3 className="font-semibold text-foreground">Order Progress</h3>
-                  <p className="text-sm text-muted-foreground">
-                    {order.totalQtyReceived.toLocaleString()} of {order.totalQtyOrdered.toLocaleString()} units received
-                  </p>
-                </div>
-                <div className="text-right">
-                  <span className="text-2xl font-bold text-primary">{order.progressPercent}%</span>
-                </div>
-              </div>
-              <Progress value={order.progressPercent} className="h-3" />
-            </CardContent>
-          </Card>
-
           {/* Pending Items Table */}
           <Card>
             <CardContent className="p-0">
@@ -408,6 +428,69 @@ export function OrderDetail({ order }: OrderDetailProps) {
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+function DueDateCardContent({ dueDate, isComplete }: { dueDate: string | null; isComplete: boolean }) {
+  const [mounted, setMounted] = useState(false)
+  
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  if (!dueDate) {
+    return (
+      <div className="flex items-center justify-between">
+        <span className="text-2xl font-bold text-muted-foreground">-</span>
+        <span className="text-sm text-muted-foreground">No due date set</span>
+      </div>
+    )
+  }
+
+  if (isComplete) {
+    return (
+      <div className="flex items-center justify-between">
+        <span className="text-2xl font-bold text-foreground">{formatDate(dueDate)}</span>
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-success/10 px-3 py-1.5 text-sm font-semibold text-success">
+          <Check className="size-4" />
+          Done
+        </span>
+      </div>
+    )
+  }
+
+  // Only calculate days remaining on client to avoid hydration mismatch
+  if (!mounted) {
+    return (
+      <div className="flex items-center justify-between">
+        <span className="text-2xl font-bold text-foreground">{formatDate(dueDate)}</span>
+      </div>
+    )
+  }
+
+  const remaining = getDaysRemaining(dueDate)
+
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-2xl font-bold text-foreground">{formatDate(dueDate)}</span>
+      {remaining && (
+        remaining.days <= 0 ? (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-destructive/10 px-3 py-1.5 text-sm font-semibold text-destructive">
+            <AlertTriangle className="size-4" />
+            Overdue
+          </span>
+        ) : remaining.isUrgent ? (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-destructive/10 px-3 py-1.5 text-sm font-semibold text-destructive">
+            <AlertTriangle className="size-4" />
+            {remaining.days} days left
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5 text-sm font-medium text-muted-foreground">
+            {remaining.days} days left
+          </span>
+        )
+      )}
     </div>
   )
 }

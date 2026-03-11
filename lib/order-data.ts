@@ -126,11 +126,35 @@ export async function fetchAllOrders(): Promise<OrderSummary[]> {
   // Group items by order
   const orderMap = new Map<string, OrderSummary>()
 
+  // First pass: calculate total qty from container_items per order
+  const orderQtyFromItems = new Map<string, number>()
+  for (const item of items ?? []) {
+    if (!item.order_id) continue
+    const currentQty = orderQtyFromItems.get(item.order_id) ?? 0
+    orderQtyFromItems.set(item.order_id, currentQty + Number(item.qty))
+  }
+
   for (const order of orders) {
     const pendingItems = pendingItemsByOrder.get(order.id) ?? []
-    const totalQtyOrdered = pendingItems.reduce((sum, pi) => sum + pi.qtyOrdered, 0)
-    const totalQtyReceived = pendingItems.reduce((sum, pi) => sum + pi.qtyReceived, 0)
-    const progressPercent = totalQtyOrdered > 0 ? Math.round((totalQtyReceived / totalQtyOrdered) * 100) : 100
+    
+    // For pending orders: use pending_items for progress
+    // For in-progress/completed orders: use container_items qty (all received = 100%)
+    let totalQtyOrdered = 0
+    let totalQtyReceived = 0
+    let progressPercent = 100
+    
+    if (order.status === "Pending" && pendingItems.length > 0) {
+      // Use pending items progress
+      totalQtyOrdered = pendingItems.reduce((sum, pi) => sum + pi.qtyOrdered, 0)
+      totalQtyReceived = pendingItems.reduce((sum, pi) => sum + pi.qtyReceived, 0)
+      progressPercent = totalQtyOrdered > 0 ? Math.round((totalQtyReceived / totalQtyOrdered) * 100) : 0
+    } else {
+      // For non-pending orders, use container_items qty as both ordered and received (100% complete)
+      const qtyFromItems = orderQtyFromItems.get(order.id) ?? 0
+      totalQtyOrdered = qtyFromItems
+      totalQtyReceived = qtyFromItems
+      progressPercent = 100
+    }
 
     orderMap.set(order.id, {
       id: order.id,
