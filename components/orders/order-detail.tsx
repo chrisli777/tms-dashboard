@@ -4,9 +4,18 @@ import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useSWRConfig } from "swr"
-import { ChevronRight, Check, Ship } from "lucide-react"
+import { ChevronRight, Check, Ship, AlertTriangle, Package } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Progress } from "@/components/ui/progress"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { StatusSelector, ORDER_STATUSES } from "@/components/ui/status-selector"
 import type { OrderSummary } from "@/lib/order-data"
 
@@ -32,6 +41,16 @@ function formatCurrency(value: number) {
 
 function formatWeight(value: number) {
   return `${value.toLocaleString()} lbs`
+}
+
+function getDaysRemaining(dueDate: string | null): { days: number; isUrgent: boolean } | null {
+  if (!dueDate) return null
+  const due = new Date(dueDate + "T00:00:00")
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const diffTime = due.getTime() - today.getTime()
+  const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+  return { days, isUrgent: days <= 15 }
 }
 
 const TIMELINE_STEPS = [
@@ -100,9 +119,14 @@ export function OrderDetail({ order }: OrderDetailProps) {
     <div className="flex flex-1 flex-col gap-6 p-6">
       {/* Order info header */}
       <div className="flex items-start justify-between">
-        <p className="text-sm text-muted-foreground">
-          {order.supplier} • {order.customer} • Order Date: {formatDate(order.orderDate)}
-        </p>
+        <div className="space-y-1">
+          <p className="text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">Supplier:</span> {order.supplier} • <span className="font-medium text-foreground">Customer:</span> {order.customer} • Order Date: {formatDate(order.orderDate)}
+          </p>
+          {order.dueDate && (
+            <DueDateDisplay dueDate={order.dueDate} isComplete={order.progressPercent === 100 || order.status === "Completed"} />
+          )}
+        </div>
         <StatusSelector
           currentStatus={currentStatus}
           statuses={ORDER_STATUSES}
@@ -173,6 +197,75 @@ export function OrderDetail({ order }: OrderDetailProps) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Pending Items Section (for Pending orders) */}
+      {order.status === "Pending" && order.pendingItems.length > 0 && (
+        <div>
+          <h2 className="mb-4 text-xs font-semibold tracking-wider text-muted-foreground">
+            PENDING ITEMS ({order.pendingItems.length} SKUs)
+          </h2>
+          
+          {/* Progress Bar */}
+          <Card className="mb-4">
+            <CardContent className="p-5">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold text-foreground">Order Progress</h3>
+                  <p className="text-sm text-muted-foreground">
+                    {order.totalQtyReceived.toLocaleString()} of {order.totalQtyOrdered.toLocaleString()} units received
+                  </p>
+                </div>
+                <div className="text-right">
+                  <span className="text-2xl font-bold text-primary">{order.progressPercent}%</span>
+                </div>
+              </div>
+              <Progress value={order.progressPercent} className="h-3" />
+            </CardContent>
+          </Card>
+
+          {/* Pending Items Table */}
+          <Card>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead>SKU</TableHead>
+                    <TableHead>DESCRIPTION</TableHead>
+                    <TableHead className="text-right">QTY ORDERED</TableHead>
+                    <TableHead className="text-right">QTY RECEIVED</TableHead>
+                    <TableHead className="text-right">UNIT COST</TableHead>
+                    <TableHead className="text-right">AMOUNT</TableHead>
+                    <TableHead className="text-center">PROGRESS</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {order.pendingItems.map((item) => {
+                    const itemProgress = item.qtyOrdered > 0 
+                      ? Math.round((item.qtyReceived / item.qtyOrdered) * 100) 
+                      : 0
+                    return (
+                      <TableRow key={item.id}>
+                        <TableCell className="font-mono font-medium">{item.sku}</TableCell>
+                        <TableCell className="text-muted-foreground">{item.description || "-"}</TableCell>
+                        <TableCell className="text-right tabular-nums">{item.qtyOrdered.toLocaleString()}</TableCell>
+                        <TableCell className="text-right tabular-nums">{item.qtyReceived.toLocaleString()}</TableCell>
+                        <TableCell className="text-right tabular-nums">{formatCurrency(item.unitCost)}</TableCell>
+                        <TableCell className="text-right font-semibold tabular-nums">{formatCurrency(item.amount)}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center justify-center gap-2">
+                            <Progress value={itemProgress} className="h-2 w-16" />
+                            <span className="text-xs text-muted-foreground">{itemProgress}%</span>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* BOLs List */}
       <div>
@@ -316,6 +409,47 @@ export function OrderDetail({ order }: OrderDetailProps) {
         </div>
       </div>
     </div>
+  )
+}
+
+function DueDateDisplay({ dueDate, isComplete }: { dueDate: string; isComplete: boolean }) {
+  const remaining = getDaysRemaining(dueDate)
+
+  if (isComplete) {
+    return (
+      <p className="flex items-center gap-2 text-sm">
+        <span className="text-muted-foreground">Due: {formatDate(dueDate)}</span>
+        <span className="inline-flex items-center gap-1 rounded bg-success/10 px-2 py-0.5 text-xs font-medium text-success">
+          <Check className="size-3" />
+          Done
+        </span>
+      </p>
+    )
+  }
+
+  if (remaining) {
+    return (
+      <p className="flex items-center gap-2 text-sm">
+        <span className="text-muted-foreground">Due: {formatDate(dueDate)}</span>
+        {remaining.days <= 0 ? (
+          <span className="inline-flex items-center gap-1 rounded bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
+            <AlertTriangle className="size-3" />
+            Overdue
+          </span>
+        ) : remaining.isUrgent ? (
+          <span className="inline-flex items-center gap-1 rounded bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
+            <AlertTriangle className="size-3" />
+            {remaining.days} days left
+          </span>
+        ) : (
+          <span className="text-muted-foreground">{remaining.days} days left</span>
+        )}
+      </p>
+    )
+  }
+
+  return (
+    <p className="text-sm text-muted-foreground">Due: {formatDate(dueDate)}</p>
   )
 }
 

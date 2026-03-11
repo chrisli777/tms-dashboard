@@ -15,6 +15,17 @@ export interface OrderBOL {
   totalWeight: number
 }
 
+export interface PendingItem {
+  id: string
+  sku: string
+  description: string | null
+  qtyOrdered: number
+  qtyReceived: number
+  unitCost: number
+  amount: number
+  weight: number
+}
+
 export interface OrderSummary {
   id: string
   poNumber: string
@@ -22,12 +33,18 @@ export interface OrderSummary {
   customer: string
   orderDate: string
   status: string
+  dueDate: string | null
   bolCount: number
   containerCount: number
   itemCount: number
   totalAmount: number
   totalWeight: number
   bols: OrderBOL[]
+  pendingItems: PendingItem[]
+  // Progress tracking
+  totalQtyOrdered: number
+  totalQtyReceived: number
+  progressPercent: number
 }
 
 /* ── Server-side data fetching ── */
@@ -78,10 +95,43 @@ export async function fetchAllOrders(): Promise<OrderSummary[]> {
     return []
   }
 
+  // Fetch pending items for all orders
+  const { data: pendingItemsData, error: pendingError } = await supabase
+    .from("pending_items")
+    .select("*")
+
+  if (pendingError) {
+    console.error("Failed to fetch pending items:", pendingError)
+  }
+
+  // Group pending items by order_id
+  const pendingItemsByOrder = new Map<string, PendingItem[]>()
+  for (const pi of pendingItemsData ?? []) {
+    const orderId = pi.order_id
+    if (!pendingItemsByOrder.has(orderId)) {
+      pendingItemsByOrder.set(orderId, [])
+    }
+    pendingItemsByOrder.get(orderId)!.push({
+      id: pi.id,
+      sku: pi.sku,
+      description: pi.description,
+      qtyOrdered: Number(pi.qty_ordered),
+      qtyReceived: Number(pi.qty_received),
+      unitCost: Number(pi.unit_cost),
+      amount: Number(pi.amount),
+      weight: Number(pi.weight),
+    })
+  }
+
   // Group items by order
   const orderMap = new Map<string, OrderSummary>()
 
   for (const order of orders) {
+    const pendingItems = pendingItemsByOrder.get(order.id) ?? []
+    const totalQtyOrdered = pendingItems.reduce((sum, pi) => sum + pi.qtyOrdered, 0)
+    const totalQtyReceived = pendingItems.reduce((sum, pi) => sum + pi.qtyReceived, 0)
+    const progressPercent = totalQtyOrdered > 0 ? Math.round((totalQtyReceived / totalQtyOrdered) * 100) : 100
+
     orderMap.set(order.id, {
       id: order.id,
       poNumber: order.po_number,
@@ -89,12 +139,17 @@ export async function fetchAllOrders(): Promise<OrderSummary[]> {
       customer: order.customer,
       orderDate: order.order_date,
       status: order.status,
+      dueDate: order.due_date,
       bolCount: 0,
       containerCount: 0,
       itemCount: 0,
       totalAmount: 0,
       totalWeight: 0,
       bols: [],
+      pendingItems,
+      totalQtyOrdered,
+      totalQtyReceived,
+      progressPercent,
     })
   }
 
