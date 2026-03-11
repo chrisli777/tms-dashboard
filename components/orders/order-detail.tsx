@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useSWRConfig } from "swr"
@@ -413,7 +413,11 @@ export function OrderDetail({ order }: OrderDetailProps) {
 }
 
 function DueDateDisplay({ dueDate, isComplete }: { dueDate: string; isComplete: boolean }) {
-  const remaining = getDaysRemaining(dueDate)
+  const [mounted, setMounted] = useState(false)
+  
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   if (isComplete) {
     return (
@@ -426,6 +430,13 @@ function DueDateDisplay({ dueDate, isComplete }: { dueDate: string; isComplete: 
       </p>
     )
   }
+
+  // Only calculate days remaining on client to avoid hydration mismatch
+  if (!mounted) {
+    return <p className="text-sm text-muted-foreground">Due: {formatDate(dueDate)}</p>
+  }
+
+  const remaining = getDaysRemaining(dueDate)
 
   if (remaining) {
     return (

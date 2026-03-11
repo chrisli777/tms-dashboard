@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import {
   Table,
@@ -217,11 +218,16 @@ function ProgressCell({ order }: { order: OrderSummary }) {
 }
 
 function DueDateCell({ order }: { order: OrderSummary }) {
+  const [mounted, setMounted] = useState(false)
+  
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
   if (!order.dueDate) {
     return <span className="text-xs text-muted-foreground">-</span>
   }
 
-  const remaining = getDaysRemaining(order.dueDate)
   const isComplete = order.status === "Completed" || order.progressPercent === 100
 
   if (isComplete) {
@@ -235,6 +241,13 @@ function DueDateCell({ order }: { order: OrderSummary }) {
       </div>
     )
   }
+
+  // Only calculate days remaining on client to avoid hydration mismatch
+  if (!mounted) {
+    return <span className="text-sm text-muted-foreground">{formatDate(order.dueDate)}</span>
+  }
+
+  const remaining = getDaysRemaining(order.dueDate)
 
   if (remaining) {
     return (
