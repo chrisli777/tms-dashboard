@@ -1,6 +1,11 @@
 import { notFound } from "next/navigation"
+import { Ship } from "lucide-react"
 import { fetchBOLByBol } from "@/lib/bol-data"
 import { BOLDetail } from "@/components/dashboard/bol-detail"
+import { SidebarLayout } from "@/components/sidebar-layout"
+
+// Force dynamic rendering to always get fresh data
+export const dynamic = "force-dynamic"
 
 interface BOLPageProps {
   params: Promise<{ id: string }>
@@ -15,5 +20,14 @@ export default async function BOLPage({ params }: BOLPageProps) {
     notFound()
   }
 
-  return <BOLDetail summary={summary} />
+  return (
+    <SidebarLayout
+      title={summary.invoice}
+      description={`BOL: ${summary.bol}`}
+      icon={<Ship className="h-8 w-8" />}
+      backHref="/shipments"
+    >
+      <BOLDetail summary={summary} />
+    </SidebarLayout>
+  )
 }

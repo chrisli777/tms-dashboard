@@ -16,7 +16,7 @@ export interface ContainerGroup {
   id: string
   container: string
   type: string
-  status: "Cleared" | "In Transit"
+  status: string
   items: ContainerItem[]
 }
 
@@ -27,7 +27,7 @@ export interface BOLSummary {
   supplier: string
   customer: string
   containerCount: number
-  status: "Cleared" | "In Transit"
+  status: string
   etd: string
   eta: string
   totalAmount: number
@@ -81,7 +81,7 @@ export async function fetchAllBOLSummaries(): Promise<BOLSummary[]> {
       id: c.id as string,
       container: c.container as string,
       type: c.type as string,
-      status: c.status as "Cleared" | "In Transit",
+      status: c.status as string,
       items: ((c.container_items as Record<string, unknown>[]) ?? []).map((i: Record<string, unknown>) => ({
         id: i.id as string,
         sku: i.sku as string,
@@ -103,7 +103,7 @@ export async function fetchAllBOLSummaries(): Promise<BOLSummary[]> {
       supplier: s.supplier,
       customer: s.customer,
       containerCount: containers.length,
-      status: s.status as "Cleared" | "In Transit",
+      status: s.status as string,
       etd: s.etd,
       eta: s.eta,
       totalAmount: allItems.reduce((sum, i) => sum + i.amount_usd, 0),
@@ -157,7 +157,7 @@ export async function fetchBOLByBol(bol: string): Promise<BOLSummary | null> {
     id: c.id as string,
     container: c.container as string,
     type: c.type as string,
-    status: c.status as "Cleared" | "In Transit",
+    status: c.status as string,
     items: ((c.container_items as Record<string, unknown>[]) ?? []).map((i: Record<string, unknown>) => ({
       id: i.id as string,
       sku: i.sku as string,
@@ -179,7 +179,7 @@ export async function fetchBOLByBol(bol: string): Promise<BOLSummary | null> {
     supplier: s.supplier,
     customer: s.customer,
     containerCount: containers.length,
-    status: s.status as "Cleared" | "In Transit",
+    status: s.status as string,
     etd: s.etd,
     eta: s.eta,
     totalAmount: allItems.reduce((sum, i) => sum + i.amount_usd, 0),

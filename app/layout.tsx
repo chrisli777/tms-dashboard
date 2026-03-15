@@ -1,14 +1,15 @@
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+import { SWRProvider } from '@/components/providers/swr-provider'
 import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'Shipment Tracking',
-  description: 'Track shipments from origin to warehouse delivery - manage BOLs, containers, and SKUs',
+  title: 'WHI SCM',
+  description: 'Supply Chain Management - Orders, Shipments, Forecasting & Replenishment',
   generator: 'v0.app',
   icons: {
     icon: [
@@ -37,7 +38,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="font-sans antialiased">
-        {children}
+        <SWRProvider>
+          {children}
+        </SWRProvider>
         <Analytics />
       </body>
     </html>
