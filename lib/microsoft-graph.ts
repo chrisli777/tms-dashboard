@@ -1,26 +1,18 @@
 // Microsoft Graph API client for OneDrive integration
-// Env refresh: 2026-03-30T17:15
+// Force refresh: 2026-03-30T17:25
 import { ConfidentialClientApplication } from "@azure/msal-node"
 
-// Lazy initialization to ensure env vars are read at runtime
-let cachedCca: ConfidentialClientApplication | null = null
-let cachedTenantId: string | null = null
-
+// Create fresh MSAL client on every call to ensure env vars are current
 function getMsalClient(): ConfidentialClientApplication {
   const tenantId = process.env.MICROSOFT_TENANT_ID
   const clientId = process.env.MICROSOFT_CLIENT_ID
   const clientSecret = process.env.MICROSOFT_CLIENT_SECRET
 
+  console.log("[v0] MSAL Config - Tenant:", tenantId, "Client:", clientId?.substring(0, 8))
+
   if (!tenantId || !clientId || !clientSecret) {
     throw new Error("Missing Microsoft credentials. Please set MICROSOFT_TENANT_ID, MICROSOFT_CLIENT_ID, and MICROSOFT_CLIENT_SECRET environment variables.")
   }
-
-  // Recreate client if tenant changed
-  if (cachedCca && cachedTenantId === tenantId) {
-    return cachedCca
-  }
-
-  console.log("[v0] Creating MSAL client with tenant:", tenantId)
 
   const msalConfig = {
     auth: {
@@ -30,9 +22,7 @@ function getMsalClient(): ConfidentialClientApplication {
     },
   }
 
-  cachedCca = new ConfidentialClientApplication(msalConfig)
-  cachedTenantId = tenantId
-  return cachedCca
+  return new ConfidentialClientApplication(msalConfig)
 }
 
 async function getAccessToken(): Promise<string> {
