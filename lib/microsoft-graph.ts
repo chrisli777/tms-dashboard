@@ -1,4 +1,5 @@
 // Microsoft Graph API client for OneDrive integration
+// Env refresh: 2026-03-30T17:15
 import { ConfidentialClientApplication } from "@azure/msal-node"
 
 // Lazy initialization to ensure env vars are read at runtime
