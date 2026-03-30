@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { generateText, Output } from "ai"
 import { z } from "zod"
-import { getOneDriveFileContent } from "@/lib/microsoft-graph"
+import { getSharedFileContent } from "@/lib/microsoft-graph"
 
 // 15-Column Order Management Schema - matches SKILL.md output format
 const lineItemSchema = z.object({
@@ -197,7 +197,7 @@ Filename: TJLT{YYYYMMDD}XX.xlsx
 
 export async function POST(request: Request) {
   try {
-    const { fileId, userId, folderPath } = await request.json()
+    const { fileId, driveId, folderPath } = await request.json()
 
     if (!fileId) {
       return NextResponse.json(
@@ -206,8 +206,10 @@ export async function POST(request: Request) {
       )
     }
 
-    // Get file content from OneDrive
-    const fileContent = await getOneDriveFileContent(fileId, userId)
+    console.log("[v0] Parsing file - fileId:", fileId, "driveId:", driveId)
+
+    // Get file content from OneDrive shared files
+    const fileContent = await getSharedFileContent(fileId, driveId)
 
     // Determine file type
     const filename = fileContent.filename.toLowerCase()

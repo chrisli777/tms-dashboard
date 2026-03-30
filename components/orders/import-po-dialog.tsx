@@ -47,12 +47,16 @@ interface OneDriveFile {
   lastModifiedDateTime: string
   webUrl: string
   mimeType?: string
+  driveId?: string
+  remoteItemId?: string
+  remoteItemDriveId?: string
 }
 
 interface OneDriveFolder {
   id: string
   name: string
   path: string
+  driveId?: string
 }
 
 type Step = "select" | "parsing" | "preview" | "importing" | "done"
@@ -64,7 +68,7 @@ export function ImportPODialog() {
   const [searchQuery, setSearchQuery] = useState("")
   const [files, setFiles] = useState<OneDriveFile[]>([])
   const [folders, setFolders] = useState<OneDriveFolder[]>([])
-  const [folderPath, setFolderPath] = useState<{ id: string; name: string }[]>([])
+  const [folderPath, setFolderPath] = useState<{ id: string; name: string; driveId?: string }[]>([])
   const [selectedFile, setSelectedFile] = useState<OneDriveFile | null>(null)
   const [parsedData, setParsedData] = useState<ParsedOrderManagement | null>(null)
   const [loading, setLoading] = useState(false)
@@ -95,9 +99,17 @@ export function ImportPODialog() {
     setLoading(true)
     setError(null)
     try {
-      const folderId = folderPath.length > 0 ? folderPath[folderPath.length - 1].id : undefined
       const params = new URLSearchParams()
-      if (folderId) params.set("folderId", folderId)
+      
+      // If browsing inside a folder, use folderId and driveId
+      if (folderPath.length > 0) {
+        const currentFolder = folderPath[folderPath.length - 1]
+        params.set("folderId", currentFolder.id)
+        if (currentFolder.driveId) {
+          params.set("driveId", currentFolder.driveId)
+        }
+      }
+      
       if (searchQuery) params.set("query", searchQuery)
 
       const response = await fetch(`/api/onedrive/files?${params}`)
@@ -121,7 +133,7 @@ export function ImportPODialog() {
   }
 
   const handleFolderClick = (folder: OneDriveFolder) => {
-    setFolderPath([...folderPath, { id: folder.id, name: folder.name }])
+    setFolderPath([...folderPath, { id: folder.id, name: folder.name, driveId: folder.driveId }])
   }
 
   const handleBreadcrumbClick = (index: number) => {
@@ -142,11 +154,16 @@ export function ImportPODialog() {
     setError(null)
 
     try {
+      // For shared files, use remoteItemId and remoteItemDriveId
+      const fileId = file.remoteItemId || file.id
+      const driveId = file.remoteItemDriveId || file.driveId
+      
       const response = await fetch("/api/po/parse", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
-          fileId: file.id,
+          fileId,
+          driveId,
           folderPath: getCurrentFolderPath(),
         }),
       })
@@ -293,7 +310,7 @@ export function ImportPODialog() {
                 className="h-7 px-2"
                 onClick={() => handleBreadcrumbClick(-1)}
               >
-                OneDrive
+                Shared with me
               </Button>
               {folderPath.map((folder, index) => (
                 <div key={folder.id} className="flex items-center">
