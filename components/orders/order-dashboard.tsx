@@ -4,6 +4,7 @@ import { useState, useMemo } from "react"
 import { OrderKPICards } from "./order-kpi-cards"
 import { OrderFilterBar } from "./order-filter-bar"
 import { OrderTable } from "./order-table"
+import { ImportPODialog } from "./import-po-dialog"
 import type { OrderSummary } from "@/lib/order-data"
 
 interface OrderDashboardProps {
@@ -54,6 +55,17 @@ export function OrderDashboard({ initialData }: OrderDashboardProps) {
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-6">
+      {/* Header with Import Button */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold">Purchase Orders</h2>
+          <p className="text-sm text-muted-foreground">
+            Manage and track all purchase orders
+          </p>
+        </div>
+        <ImportPODialog />
+      </div>
+
       {/* KPI Cards */}
       <OrderKPICards data={filteredData} />
 
