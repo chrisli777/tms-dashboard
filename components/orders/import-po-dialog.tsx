@@ -37,6 +37,7 @@ import {
   Ship,
   Package,
   AlertTriangle,
+  LogOut,
 } from "lucide-react"
 import type { ParsedOrderManagement } from "@/app/api/po/parse/route"
 
@@ -47,24 +48,38 @@ interface OneDriveFile {
   lastModifiedDateTime: string
   webUrl: string
   mimeType?: string
+  driveId?: string
+  remoteItemId?: string
+  remoteItemDriveId?: string
 }
 
 interface OneDriveFolder {
   id: string
   name: string
   path: string
+  driveId?: string
 }
 
-type Step = "select" | "parsing" | "preview" | "importing" | "done"
+interface AuthStatus {
+  authenticated: boolean
+  user?: {
+    name: string
+    email: string
+  }
+}
+
+type Step = "auth" | "select" | "parsing" | "preview" | "importing" | "done"
 
 export function ImportPODialog() {
   const router = useRouter()
   const [open, setOpen] = useState(false)
-  const [step, setStep] = useState<Step>("select")
+  const [step, setStep] = useState<Step>("auth")
+  const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null)
+  const [authLoading, setAuthLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [files, setFiles] = useState<OneDriveFile[]>([])
   const [folders, setFolders] = useState<OneDriveFolder[]>([])
-  const [folderPath, setFolderPath] = useState<{ id: string; name: string }[]>([])
+  const [folderPath, setFolderPath] = useState<{ id: string; name: string; driveId?: string }[]>([])
   const [selectedFile, setSelectedFile] = useState<OneDriveFile | null>(null)
   const [parsedData, setParsedData] = useState<ParsedOrderManagement | null>(null)
   const [loading, setLoading] = useState(false)
@@ -84,27 +99,78 @@ export function ImportPODialog() {
     }
   } | null>(null)
 
-  // Load files when dialog opens or folder changes
+  // Check auth status when dialog opens
   useEffect(() => {
     if (open) {
+      checkAuthStatus()
+    }
+  }, [open])
+
+  // Load files when authenticated and folder changes
+  useEffect(() => {
+    if (open && authStatus?.authenticated) {
       loadFiles()
     }
-  }, [open, folderPath])
+  }, [open, folderPath, authStatus?.authenticated])
+
+  const checkAuthStatus = async () => {
+    setAuthLoading(true)
+    try {
+      const response = await fetch("/api/auth/microsoft/status")
+      const data = await response.json()
+      setAuthStatus(data)
+      if (data.authenticated) {
+        setStep("select")
+      } else {
+        setStep("auth")
+      }
+    } catch (err) {
+      console.error("Failed to check auth status:", err)
+      setStep("auth")
+    } finally {
+      setAuthLoading(false)
+    }
+  }
+
+  const handleSignIn = () => {
+    // Redirect to Microsoft login
+    window.location.href = `/api/auth/microsoft/login?returnUrl=${encodeURIComponent(window.location.pathname)}`
+  }
+
+  const handleSignOut = async () => {
+    await fetch("/api/auth/microsoft/logout", { method: "POST" })
+    setAuthStatus(null)
+    setStep("auth")
+  }
 
   const loadFiles = async () => {
     setLoading(true)
     setError(null)
     try {
-      const folderId = folderPath.length > 0 ? folderPath[folderPath.length - 1].id : undefined
       const params = new URLSearchParams()
-      if (folderId) params.set("folderId", folderId)
+      
+      // If browsing inside a folder
+      if (folderPath.length > 0) {
+        const currentFolder = folderPath[folderPath.length - 1]
+        params.set("folderId", currentFolder.id)
+        if (currentFolder.driveId) {
+          params.set("driveId", currentFolder.driveId)
+        }
+      }
+      
       if (searchQuery) params.set("query", searchQuery)
 
       const response = await fetch(`/api/onedrive/files?${params}`)
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to load files")
+        // Handle auth error
+        if (data.error === "not_authenticated") {
+          setAuthStatus({ authenticated: false })
+          setStep("auth")
+          return
+        }
+        throw new Error(data.message || data.error || "Failed to load files")
       }
 
       setFiles(data.files || [])
@@ -121,7 +187,7 @@ export function ImportPODialog() {
   }
 
   const handleFolderClick = (folder: OneDriveFolder) => {
-    setFolderPath([...folderPath, { id: folder.id, name: folder.name }])
+    setFolderPath([...folderPath, { id: folder.id, name: folder.name, driveId: folder.driveId }])
   }
 
   const handleBreadcrumbClick = (index: number) => {
@@ -142,11 +208,16 @@ export function ImportPODialog() {
     setError(null)
 
     try {
+      // For shared files, use the proper IDs
+      const fileId = file.remoteItemId || file.id
+      const driveId = file.remoteItemDriveId || file.driveId
+
       const response = await fetch("/api/po/parse", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
-          fileId: file.id,
+          fileId,
+          driveId,
           folderPath: getCurrentFolderPath(),
         }),
       })
@@ -197,12 +268,13 @@ export function ImportPODialog() {
     setOpen(false)
     // Reset state after animation
     setTimeout(() => {
-      setStep("select")
+      setStep(authStatus?.authenticated ? "select" : "auth")
       setSelectedFile(null)
       setParsedData(null)
       setError(null)
       setImportResult(null)
       setSearchQuery("")
+      setFolderPath([])
     }, 300)
   }
 
@@ -244,6 +316,7 @@ export function ImportPODialog() {
       <DialogContent className="max-h-[85vh] max-w-4xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
+            {step === "auth" && "Sign in to OneDrive"}
             {step === "select" && "Import Purchase Order from OneDrive"}
             {step === "parsing" && "Parsing Document with AI..."}
             {step === "preview" && "Review Parsed Order Management Data"}
@@ -251,6 +324,7 @@ export function ImportPODialog() {
             {step === "done" && "Import Complete"}
           </DialogTitle>
           <DialogDescription>
+            {step === "auth" && "Sign in with your Microsoft account to access shared files."}
             {step === "select" && "Select a PDF or Excel file containing purchase order information."}
             {step === "parsing" && "Using Claude AI to extract and standardize purchase order data."}
             {step === "preview" && "Review the 15-column Order Management data before importing."}
@@ -263,6 +337,41 @@ export function ImportPODialog() {
           <div className="flex items-center gap-2 rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
             <AlertCircle className="size-4" />
             {error}
+          </div>
+        )}
+
+        {/* Step 0: Authentication */}
+        {step === "auth" && (
+          <div className="flex flex-col items-center gap-6 py-8">
+            {authLoading ? (
+              <Loader2 className="size-8 animate-spin text-muted-foreground" />
+            ) : (
+              <>
+                <div className="flex size-16 items-center justify-center rounded-full bg-muted">
+                  <svg viewBox="0 0 23 23" className="size-10">
+                    <path fill="#f35325" d="M1 1h10v10H1z" />
+                    <path fill="#81bc06" d="M12 1h10v10H12z" />
+                    <path fill="#05a6f0" d="M1 12h10v10H1z" />
+                    <path fill="#ffba08" d="M12 12h10v10H12z" />
+                  </svg>
+                </div>
+                <div className="text-center">
+                  <p className="text-lg font-semibold">Connect to OneDrive</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Sign in with your Microsoft account to access shared files
+                  </p>
+                </div>
+                <Button onClick={handleSignIn} size="lg" className="gap-2">
+                  <svg viewBox="0 0 23 23" className="size-5">
+                    <path fill="#f35325" d="M1 1h10v10H1z" />
+                    <path fill="#81bc06" d="M12 1h10v10H12z" />
+                    <path fill="#05a6f0" d="M1 12h10v10H1z" />
+                    <path fill="#ffba08" d="M12 12h10v10H12z" />
+                  </svg>
+                  Sign in with Microsoft
+                </Button>
+              </>
+            )}
           </div>
         )}
 
@@ -285,16 +394,17 @@ export function ImportPODialog() {
               </Button>
             </div>
 
-            {/* Breadcrumb */}
-            <div className="flex items-center gap-1 text-sm">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 px-2"
-                onClick={() => handleBreadcrumbClick(-1)}
-              >
-                OneDrive
-              </Button>
+            {/* User info & breadcrumb */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1 text-sm">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2"
+                  onClick={() => handleBreadcrumbClick(-1)}
+                >
+                  Shared with me
+                </Button>
               {folderPath.map((folder, index) => (
                 <div key={folder.id} className="flex items-center">
                   <ChevronRight className="size-4 text-muted-foreground" />
@@ -308,6 +418,15 @@ export function ImportPODialog() {
                   </Button>
                 </div>
               ))}
+              </div>
+              {authStatus?.user && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>{authStatus.user.email}</span>
+                  <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={handleSignOut}>
+                    Sign out
+                  </Button>
+                </div>
+              )}
             </div>
 
             {/* File List */}

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { generateText, Output } from "ai"
 import { z } from "zod"
-import { getOneDriveFileContent } from "@/lib/microsoft-graph"
+import { getValidAccessToken } from "@/lib/microsoft-auth"
 
 // 15-Column Order Management Schema - matches SKILL.md output format
 const lineItemSchema = z.object({
@@ -195,9 +195,58 @@ Filename: TJLT{YYYYMMDD}XX.xlsx
 7. Cross-check: Amount should equal Qty × Unit Price (flag if different)
 `
 
+// Get file content from OneDrive using delegated access token
+async function getFileContent(
+  accessToken: string,
+  fileId: string,
+  driveId?: string
+): Promise<{ data: string; mimeType: string; filename: string }> {
+  // Build endpoint - use drives/{driveId} for shared files
+  const endpoint = driveId
+    ? `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${fileId}`
+    : `https://graph.microsoft.com/v1.0/me/drive/items/${fileId}`
+
+  console.log("[v0] Getting file content from:", endpoint)
+
+  const metaResponse = await fetch(endpoint, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  })
+
+  if (!metaResponse.ok) {
+    const error = await metaResponse.text()
+    throw new Error(`Failed to get file metadata: ${error}`)
+  }
+
+  const metadata = await metaResponse.json()
+  const downloadUrl = metadata["@microsoft.graph.downloadUrl"]
+  const mimeType = metadata.file?.mimeType || "application/octet-stream"
+  const filename = metadata.name
+
+  if (!downloadUrl) {
+    throw new Error("No download URL available for this file")
+  }
+
+  // Download file content
+  const contentResponse = await fetch(downloadUrl)
+  if (!contentResponse.ok) {
+    throw new Error("Failed to download file content")
+  }
+
+  const arrayBuffer = await contentResponse.arrayBuffer()
+  const base64 = Buffer.from(arrayBuffer).toString("base64")
+
+  return {
+    data: base64,
+    mimeType,
+    filename,
+  }
+}
+
 export async function POST(request: Request) {
   try {
-    const { fileId, userId, folderPath } = await request.json()
+    const { fileId, driveId, folderPath } = await request.json()
 
     if (!fileId) {
       return NextResponse.json(
@@ -206,8 +255,17 @@ export async function POST(request: Request) {
       )
     }
 
+    // Check authentication
+    const accessToken = await getValidAccessToken()
+    if (!accessToken) {
+      return NextResponse.json(
+        { error: "not_authenticated", message: "Please sign in with Microsoft" },
+        { status: 401 }
+      )
+    }
+
     // Get file content from OneDrive
-    const fileContent = await getOneDriveFileContent(fileId, userId)
+    const fileContent = await getFileContent(accessToken, fileId, driveId)
 
     // Determine file type
     const filename = fileContent.filename.toLowerCase()
