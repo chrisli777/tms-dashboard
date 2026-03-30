@@ -1,17 +1,41 @@
 // Microsoft Graph API client for OneDrive integration
 import { ConfidentialClientApplication } from "@azure/msal-node"
 
-const msalConfig = {
-  auth: {
-    clientId: process.env.MICROSOFT_CLIENT_ID!,
-    clientSecret: process.env.MICROSOFT_CLIENT_SECRET!,
-    authority: `https://login.microsoftonline.com/${process.env.MICROSOFT_TENANT_ID}`,
-  },
+// Lazy initialization to ensure env vars are read at runtime
+let cachedCca: ConfidentialClientApplication | null = null
+let cachedTenantId: string | null = null
+
+function getMsalClient(): ConfidentialClientApplication {
+  const tenantId = process.env.MICROSOFT_TENANT_ID
+  const clientId = process.env.MICROSOFT_CLIENT_ID
+  const clientSecret = process.env.MICROSOFT_CLIENT_SECRET
+
+  if (!tenantId || !clientId || !clientSecret) {
+    throw new Error("Missing Microsoft credentials. Please set MICROSOFT_TENANT_ID, MICROSOFT_CLIENT_ID, and MICROSOFT_CLIENT_SECRET environment variables.")
+  }
+
+  // Recreate client if tenant changed
+  if (cachedCca && cachedTenantId === tenantId) {
+    return cachedCca
+  }
+
+  console.log("[v0] Creating MSAL client with tenant:", tenantId)
+
+  const msalConfig = {
+    auth: {
+      clientId,
+      clientSecret,
+      authority: `https://login.microsoftonline.com/${tenantId}`,
+    },
+  }
+
+  cachedCca = new ConfidentialClientApplication(msalConfig)
+  cachedTenantId = tenantId
+  return cachedCca
 }
 
-const cca = new ConfidentialClientApplication(msalConfig)
-
 async function getAccessToken(): Promise<string> {
+  const cca = getMsalClient()
   const result = await cca.acquireTokenByClientCredential({
     scopes: ["https://graph.microsoft.com/.default"],
   })
