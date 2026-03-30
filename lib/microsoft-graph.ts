@@ -6,6 +6,7 @@ import { ConfidentialClientApplication } from "@azure/msal-node"
 const HARDCODED_TENANT_ID = "3ca75e96-5bb7-49da-8836-e47210951589"
 const HARDCODED_CLIENT_ID = "533c767d-c6f2-4eff-8086-c4afcb6447e8"
 const HARDCODED_CLIENT_SECRET = "gzh8Q~GMus~t5iJdO1UVxvPsJOXThl66yE0lscv~"
+const DEFAULT_USER_EMAIL = "chris.li@whcast.com"
 
 function getMsalClient(): ConfidentialClientApplication {
   const tenantId = HARDCODED_TENANT_ID
@@ -65,14 +66,15 @@ export async function listOneDriveFiles(
 ): Promise<{ files: OneDriveFile[]; folders: OneDriveFolder[] }> {
   const token = await getAccessToken()
   
-  // Default to root if no folder specified
-  const endpoint = userId
-    ? folderId
-      ? `https://graph.microsoft.com/v1.0/users/${userId}/drive/items/${folderId}/children`
-      : `https://graph.microsoft.com/v1.0/users/${userId}/drive/root/children`
-    : folderId
-      ? `https://graph.microsoft.com/v1.0/me/drive/items/${folderId}/children`
-      : `https://graph.microsoft.com/v1.0/me/drive/root/children`
+  // Use default user email for application-only auth
+  const user = userId || DEFAULT_USER_EMAIL
+  
+  // Build endpoint for specified user
+  const endpoint = folderId
+    ? `https://graph.microsoft.com/v1.0/users/${user}/drive/items/${folderId}/children`
+    : `https://graph.microsoft.com/v1.0/users/${user}/drive/root/children`
+  
+  console.log("[v0] OneDrive endpoint:", endpoint)
 
   const response = await fetch(endpoint, {
     headers: {
@@ -132,11 +134,12 @@ export async function getOneDriveFileContent(
   userId?: string
 ): Promise<{ data: string; mimeType: string; filename: string }> {
   const token = await getAccessToken()
+  
+  // Use default user email for application-only auth
+  const user = userId || DEFAULT_USER_EMAIL
 
   // First get file metadata
-  const metaEndpoint = userId
-    ? `https://graph.microsoft.com/v1.0/users/${userId}/drive/items/${fileId}`
-    : `https://graph.microsoft.com/v1.0/me/drive/items/${fileId}`
+  const metaEndpoint = `https://graph.microsoft.com/v1.0/users/${user}/drive/items/${fileId}`
 
   const metaResponse = await fetch(metaEndpoint, {
     headers: {
@@ -175,10 +178,11 @@ export async function searchOneDriveFiles(
   userId?: string
 ): Promise<OneDriveFile[]> {
   const token = await getAccessToken()
+  
+  // Use default user email for application-only auth
+  const user = userId || DEFAULT_USER_EMAIL
 
-  const endpoint = userId
-    ? `https://graph.microsoft.com/v1.0/users/${userId}/drive/root/search(q='${encodeURIComponent(query)}')`
-    : `https://graph.microsoft.com/v1.0/me/drive/root/search(q='${encodeURIComponent(query)}')`
+  const endpoint = `https://graph.microsoft.com/v1.0/users/${user}/drive/root/search(q='${encodeURIComponent(query)}')`
 
   const response = await fetch(endpoint, {
     headers: {
