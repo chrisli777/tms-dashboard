@@ -1,17 +1,21 @@
 // Microsoft Graph API client for OneDrive integration
-// Force refresh: 2026-03-30T17:25
 import { ConfidentialClientApplication } from "@azure/msal-node"
 
-// Create fresh MSAL client on every call to ensure env vars are current
+// TEMPORARY: Hardcoded credentials to bypass env var caching issue
+// TODO: Revert to env vars once caching is resolved
+const HARDCODED_TENANT_ID = "3ca75e96-5bb7-49da-8836-e47210951589"
+const HARDCODED_CLIENT_ID = "533c767d-c6f2-4eff-8086-c4afcb6447e8"
+
 function getMsalClient(): ConfidentialClientApplication {
-  const tenantId = process.env.MICROSOFT_TENANT_ID
-  const clientId = process.env.MICROSOFT_CLIENT_ID
+  // Use hardcoded values, fall back to env vars
+  const tenantId = HARDCODED_TENANT_ID || process.env.MICROSOFT_TENANT_ID
+  const clientId = HARDCODED_CLIENT_ID || process.env.MICROSOFT_CLIENT_ID
   const clientSecret = process.env.MICROSOFT_CLIENT_SECRET
 
-  console.log("[v0] MSAL Config - Tenant:", tenantId, "Client:", clientId?.substring(0, 8))
+  console.log("[v0] MSAL Using - Tenant:", tenantId, "Client:", clientId?.substring(0, 8))
 
   if (!tenantId || !clientId || !clientSecret) {
-    throw new Error("Missing Microsoft credentials. Please set MICROSOFT_TENANT_ID, MICROSOFT_CLIENT_ID, and MICROSOFT_CLIENT_SECRET environment variables.")
+    throw new Error("Missing Microsoft credentials. Please set MICROSOFT_CLIENT_SECRET environment variable.")
   }
 
   const msalConfig = {
