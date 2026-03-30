@@ -2,6 +2,10 @@ import { NextResponse } from "next/server"
 import { listOneDriveFiles, searchOneDriveFiles } from "@/lib/microsoft-graph"
 
 export async function GET(request: Request) {
+  // Debug: Print env vars at request time
+  console.log("[v0] ENV CHECK - TENANT_ID:", process.env.MICROSOFT_TENANT_ID)
+  console.log("[v0] ENV CHECK - CLIENT_ID:", process.env.MICROSOFT_CLIENT_ID?.substring(0, 8))
+  
   try {
     const { searchParams } = new URL(request.url)
     const folderId = searchParams.get("folderId") || undefined
