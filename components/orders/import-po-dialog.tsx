@@ -34,8 +34,11 @@ import {
   ChevronRight,
   ArrowLeft,
   RefreshCw,
+  Ship,
+  Package,
+  AlertTriangle,
 } from "lucide-react"
-import type { ParsedPO } from "@/app/api/po/parse/route"
+import type { ParsedOrderManagement } from "@/app/api/po/parse/route"
 
 interface OneDriveFile {
   id: string
@@ -63,13 +66,22 @@ export function ImportPODialog() {
   const [folders, setFolders] = useState<OneDriveFolder[]>([])
   const [folderPath, setFolderPath] = useState<{ id: string; name: string }[]>([])
   const [selectedFile, setSelectedFile] = useState<OneDriveFile | null>(null)
-  const [parsedData, setParsedData] = useState<ParsedPO | null>(null)
+  const [parsedData, setParsedData] = useState<ParsedOrderManagement | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [importResult, setImportResult] = useState<{
-    action: string
-    message: string
-    orderId?: string
+    success: boolean
+    results: Array<{
+      poNumber: string
+      action: string
+      message: string
+    }>
+    summary: {
+      totalPOs: number
+      created: number
+      updated: number
+      errors: number
+    }
   } | null>(null)
 
   // Load files when dialog opens or folder changes
@@ -120,6 +132,10 @@ export function ImportPODialog() {
     }
   }
 
+  const getCurrentFolderPath = () => {
+    return folderPath.map(f => f.name).join("/")
+  }
+
   const handleFileSelect = async (file: OneDriveFile) => {
     setSelectedFile(file)
     setStep("parsing")
@@ -129,7 +145,10 @@ export function ImportPODialog() {
       const response = await fetch("/api/po/parse", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileId: file.id }),
+        body: JSON.stringify({ 
+          fileId: file.id,
+          folderPath: getCurrentFolderPath(),
+        }),
       })
 
       const data = await response.json()
@@ -201,6 +220,19 @@ export function ImportPODialog() {
     })
   }
 
+  // Group line items by WHI PO for display
+  const getGroupedItems = () => {
+    if (!parsedData) return []
+    const groups = new Map<string, typeof parsedData.lineItems>()
+    for (const item of parsedData.lineItems) {
+      if (!groups.has(item.whiPo)) {
+        groups.set(item.whiPo, [])
+      }
+      groups.get(item.whiPo)!.push(item)
+    }
+    return Array.from(groups.entries())
+  }
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -209,21 +241,21 @@ export function ImportPODialog() {
           Import PO
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
+      <DialogContent className="max-h-[85vh] max-w-4xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {step === "select" && "Import Purchase Order from OneDrive"}
-            {step === "parsing" && "Parsing Document..."}
-            {step === "preview" && "Review Parsed Data"}
+            {step === "parsing" && "Parsing Document with AI..."}
+            {step === "preview" && "Review Parsed Order Management Data"}
             {step === "importing" && "Importing PO..."}
             {step === "done" && "Import Complete"}
           </DialogTitle>
           <DialogDescription>
             {step === "select" && "Select a PDF or Excel file containing purchase order information."}
-            {step === "parsing" && "Using AI to extract purchase order data from the document."}
-            {step === "preview" && "Review the extracted data before importing."}
+            {step === "parsing" && "Using Claude AI to extract and standardize purchase order data."}
+            {step === "preview" && "Review the 15-column Order Management data before importing."}
             {step === "importing" && "Saving purchase order to the database."}
-            {step === "done" && importResult?.message}
+            {step === "done" && `Processed ${importResult?.summary.totalPOs || 0} PO(s)`}
           </DialogDescription>
         </DialogHeader>
 
@@ -328,8 +360,11 @@ export function ImportPODialog() {
           <div className="flex flex-col items-center gap-4 py-8">
             <Loader2 className="size-12 animate-spin text-primary" />
             <div className="text-center">
-              <p className="font-medium">Analyzing document with AI...</p>
+              <p className="font-medium">Analyzing document with Claude AI...</p>
               <p className="text-sm text-muted-foreground">{selectedFile?.name}</p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Extracting supplier info, line items, containers, and BOL data
+              </p>
             </div>
             <Progress value={33} className="w-48" />
           </div>
@@ -340,98 +375,178 @@ export function ImportPODialog() {
           <div className="space-y-4">
             {/* Summary Card */}
             <Card>
-              <CardContent className="grid gap-4 p-4 sm:grid-cols-2">
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground">PO NUMBER</p>
-                  <p className="text-lg font-bold">{parsedData.poNumber}</p>
-                </div>
+              <CardContent className="grid gap-4 p-4 sm:grid-cols-4">
                 <div>
                   <p className="text-xs font-medium text-muted-foreground">SUPPLIER</p>
-                  <p className="text-lg font-bold">{parsedData.supplier}</p>
+                  <p className="text-lg font-bold text-primary">{parsedData.supplierDetected}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground">ORDER DATE</p>
-                  <p className="font-medium">{parsedData.orderDate || "-"}</p>
+                  <p className="text-xs font-medium text-muted-foreground">CUSTOMER</p>
+                  <p className="text-lg font-bold">{parsedData.customerDetected}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground">DUE DATE</p>
-                  <p className="font-medium">{parsedData.dueDate || "-"}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground">TOTAL AMOUNT</p>
-                  <p className="font-medium text-primary">
-                    ${parsedData.totalAmount.toLocaleString()}
-                  </p>
+                  <p className="text-xs font-medium text-muted-foreground">INVOICE</p>
+                  <p className="font-mono font-medium">{parsedData.invoiceNumber}</p>
                 </div>
                 <div>
                   <p className="text-xs font-medium text-muted-foreground">STATUS</p>
                   <Badge variant={parsedData.bolNumber ? "default" : "secondary"}>
-                    {parsedData.bolNumber ? "Has BOL - Will Create With Details" : "Pending - No BOL"}
+                    {parsedData.bolNumber ? "Has BOL" : "Pending"}
                   </Badge>
                 </div>
               </CardContent>
             </Card>
 
-            {/* BOL Info if present */}
+            {/* BOL & Container Info */}
             {parsedData.bolNumber && (
               <Card>
                 <CardContent className="p-4">
-                  <p className="mb-2 text-xs font-medium text-muted-foreground">SHIPMENT INFO</p>
-                  <div className="grid gap-2 sm:grid-cols-3">
+                  <div className="mb-3 flex items-center gap-2">
+                    <Ship className="size-4 text-primary" />
+                    <span className="text-sm font-semibold">Shipment Information</span>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-4">
                     <div>
-                      <span className="text-sm text-muted-foreground">BOL: </span>
-                      <span className="font-medium">{parsedData.bolNumber}</span>
+                      <span className="text-xs text-muted-foreground">BL No.</span>
+                      <p className="font-mono font-medium">{parsedData.bolNumber}</p>
                     </div>
+                    {parsedData.vessel && (
+                      <div>
+                        <span className="text-xs text-muted-foreground">Vessel</span>
+                        <p className="font-medium">{parsedData.vessel}</p>
+                      </div>
+                    )}
                     {parsedData.etd && (
                       <div>
-                        <span className="text-sm text-muted-foreground">ETD: </span>
-                        <span className="font-medium">{parsedData.etd}</span>
+                        <span className="text-xs text-muted-foreground">ETD</span>
+                        <p className="font-medium">{parsedData.etd}</p>
                       </div>
                     )}
                     {parsedData.eta && (
                       <div>
-                        <span className="text-sm text-muted-foreground">ETA: </span>
-                        <span className="font-medium">{parsedData.eta}</span>
+                        <span className="text-xs text-muted-foreground">ETA</span>
+                        <p className="font-medium">{parsedData.eta}</p>
                       </div>
                     )}
                   </div>
-                  {parsedData.containerNumbers && parsedData.containerNumbers.length > 0 && (
-                    <div className="mt-2">
-                      <span className="text-sm text-muted-foreground">Containers: </span>
-                      <span className="font-medium">{parsedData.containerNumbers.join(", ")}</span>
+                  {parsedData.containers.length > 0 && (
+                    <div className="mt-3">
+                      <div className="mb-2 flex items-center gap-2">
+                        <Package className="size-4 text-muted-foreground" />
+                        <span className="text-xs font-medium text-muted-foreground">
+                          CONTAINERS ({parsedData.containers.length})
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {parsedData.containers.map((cont, idx) => (
+                          <Badge key={idx} variant="outline" className="font-mono">
+                            {cont.number} ({cont.type})
+                          </Badge>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </CardContent>
               </Card>
             )}
 
-            {/* Items Table */}
+            {/* Warnings */}
+            {parsedData.warnings.length > 0 && (
+              <Card className="border-amber-500/50">
+                <CardContent className="p-4">
+                  <div className="mb-2 flex items-center gap-2 text-amber-600">
+                    <AlertTriangle className="size-4" />
+                    <span className="text-sm font-semibold">Parsing Warnings</span>
+                  </div>
+                  <ul className="list-inside list-disc space-y-1 text-sm text-muted-foreground">
+                    {parsedData.warnings.map((warning, idx) => (
+                      <li key={idx}>{warning}</li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Totals */}
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Card>
+                <CardContent className="p-4 text-center">
+                  <p className="text-2xl font-bold text-primary">
+                    {parsedData.totalQty.toLocaleString()}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Total Qty</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4 text-center">
+                  <p className="text-2xl font-bold text-primary">
+                    ${parsedData.totalAmount.toLocaleString()}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Total Amount</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4 text-center">
+                  <p className="text-2xl font-bold text-primary">
+                    {parsedData.totalWeight?.toLocaleString() || "-"} kg
+                  </p>
+                  <p className="text-xs text-muted-foreground">Total Weight</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Line Items Table - Grouped by PO */}
             <div>
               <p className="mb-2 text-xs font-medium text-muted-foreground">
-                LINE ITEMS ({parsedData.items.length})
+                ORDER MANAGEMENT TABLE ({parsedData.lineItems.length} rows)
               </p>
-              <div className="max-h-[200px] overflow-auto rounded-lg border">
+              <div className="max-h-[250px] overflow-auto rounded-lg border">
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>WHI PO</TableHead>
+                      <TableHead>Container</TableHead>
                       <TableHead>SKU</TableHead>
-                      <TableHead>Description</TableHead>
                       <TableHead className="text-right">Qty</TableHead>
-                      <TableHead className="text-right">Unit Cost</TableHead>
+                      <TableHead className="text-right">$/PCS</TableHead>
                       <TableHead className="text-right">Amount</TableHead>
+                      <TableHead className="text-right">GW(kg)</TableHead>
+                      <TableHead>Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {parsedData.items.map((item, index) => (
+                    {parsedData.lineItems.map((item, index) => (
                       <TableRow key={index}>
-                        <TableCell className="font-mono">{item.sku}</TableCell>
-                        <TableCell className="max-w-[200px] truncate">
-                          {item.description || "-"}
+                        <TableCell className="font-mono text-xs">{item.whiPo}</TableCell>
+                        <TableCell className="font-mono text-xs">
+                          {item.container || "-"}
                         </TableCell>
-                        <TableCell className="text-right">{item.qty.toLocaleString()}</TableCell>
-                        <TableCell className="text-right">${item.unitCost.toFixed(2)}</TableCell>
-                        <TableCell className="text-right font-medium">
-                          ${item.amount.toLocaleString()}
+                        <TableCell className="font-mono font-medium">{item.sku}</TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {item.qty.toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          ${item.unitPriceUsd.toFixed(2)}
+                        </TableCell>
+                        <TableCell className="text-right font-medium tabular-nums">
+                          ${item.amountUsd.toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {item.gwKg?.toLocaleString() || "-"}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              item.status === "Cleared"
+                                ? "default"
+                                : item.status === "In Transit"
+                                  ? "secondary"
+                                  : "outline"
+                            }
+                            className="text-xs"
+                          >
+                            {item.status}
+                          </Badge>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -448,7 +563,7 @@ export function ImportPODialog() {
               </Button>
               <Button onClick={handleImport}>
                 <Check className="mr-2 size-4" />
-                Import PO
+                Import {getGroupedItems().length} PO(s)
               </Button>
             </div>
           </div>
@@ -459,8 +574,10 @@ export function ImportPODialog() {
           <div className="flex flex-col items-center gap-4 py-8">
             <Loader2 className="size-12 animate-spin text-primary" />
             <div className="text-center">
-              <p className="font-medium">Importing purchase order...</p>
-              <p className="text-sm text-muted-foreground">PO #{parsedData?.poNumber}</p>
+              <p className="font-medium">Importing purchase orders...</p>
+              <p className="text-sm text-muted-foreground">
+                Processing {parsedData?.lineItems.length} line items
+              </p>
             </div>
             <Progress value={66} className="w-48" />
           </div>
@@ -468,19 +585,55 @@ export function ImportPODialog() {
 
         {/* Step 5: Done */}
         {step === "done" && importResult && (
-          <div className="flex flex-col items-center gap-4 py-8">
-            <div className="flex size-16 items-center justify-center rounded-full bg-success/10">
-              <Check className="size-8 text-success" />
+          <div className="space-y-4 py-4">
+            <div className="flex flex-col items-center gap-4">
+              <div className="flex size-16 items-center justify-center rounded-full bg-success/10">
+                <Check className="size-8 text-success" />
+              </div>
+              <div className="text-center">
+                <p className="text-lg font-semibold">Import Complete</p>
+                <p className="text-sm text-muted-foreground">
+                  {importResult.summary.created} created, {importResult.summary.updated} updated
+                  {importResult.summary.errors > 0 && `, ${importResult.summary.errors} errors`}
+                </p>
+              </div>
             </div>
-            <div className="text-center">
-              <p className="font-medium">{importResult.message}</p>
-              <p className="text-sm text-muted-foreground">
-                {importResult.action === "updated" && "Existing PO was updated with new data."}
-                {importResult.action === "created_pending" && "Created as pending (no BOL yet)."}
-                {importResult.action === "created_with_bol" && "Created with shipment and container details."}
-              </p>
+
+            {/* Results list */}
+            <div className="space-y-2">
+              {importResult.results.map((result, idx) => (
+                <div
+                  key={idx}
+                  className={`flex items-center justify-between rounded-lg border p-3 ${
+                    result.action === "error"
+                      ? "border-destructive/50 bg-destructive/5"
+                      : "border-success/50 bg-success/5"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    {result.action === "error" ? (
+                      <AlertCircle className="size-4 text-destructive" />
+                    ) : (
+                      <Check className="size-4 text-success" />
+                    )}
+                    <span className="font-mono font-medium">PO #{result.poNumber}</span>
+                  </div>
+                  <Badge
+                    variant={result.action === "error" ? "destructive" : "default"}
+                    className="text-xs"
+                  >
+                    {result.action === "created_pending" && "Created (Pending)"}
+                    {result.action === "created_with_bol" && "Created (With BOL)"}
+                    {result.action === "updated" && "Updated"}
+                    {result.action === "error" && "Error"}
+                  </Badge>
+                </div>
+              ))}
             </div>
-            <Button onClick={handleClose}>Done</Button>
+
+            <div className="flex justify-center">
+              <Button onClick={handleClose}>Done</Button>
+            </div>
           </div>
         )}
       </DialogContent>
