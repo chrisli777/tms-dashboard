@@ -5,12 +5,12 @@ import { ConfidentialClientApplication } from "@azure/msal-node"
 // TODO: Revert to env vars once caching is resolved
 const HARDCODED_TENANT_ID = "3ca75e96-5bb7-49da-8836-e47210951589"
 const HARDCODED_CLIENT_ID = "533c767d-c6f2-4eff-8086-c4afcb6447e8"
+const HARDCODED_CLIENT_SECRET = "cm~8Q~FfYEMhdV4MYpSzw0paGjdFnsJjZWaI5btL"
 
 function getMsalClient(): ConfidentialClientApplication {
-  // Use hardcoded values, fall back to env vars
-  const tenantId = HARDCODED_TENANT_ID || process.env.MICROSOFT_TENANT_ID
-  const clientId = HARDCODED_CLIENT_ID || process.env.MICROSOFT_CLIENT_ID
-  const clientSecret = process.env.MICROSOFT_CLIENT_SECRET
+  const tenantId = HARDCODED_TENANT_ID
+  const clientId = HARDCODED_CLIENT_ID
+  const clientSecret = HARDCODED_CLIENT_SECRET
 
   console.log("[v0] MSAL Using - Tenant:", tenantId, "Client:", clientId?.substring(0, 8))
 
