@@ -8,79 +8,110 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 })
 
-// Get all shared files from OneDrive (recursively)
-async function getSharedFiles(accessToken: string) {
-  const allFiles: Array<{
-    id: string
-    name: string
-    driveId: string
-    mimeType: string
-  }> = []
+interface OneDriveFile {
+  id: string
+  name: string
+  driveId?: string
+  mimeType?: string
+}
 
-  // First, get shared items
-  const response = await fetch(
-    "https://graph.microsoft.com/v1.0/me/drive/sharedWithMe",
-    {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-    }
-  )
+interface OneDriveFolder {
+  id: string
+  name: string
+  driveId?: string
+}
 
-  if (!response.ok) {
-    const error = await response.text()
-    console.error("[v0] sharedWithMe error:", error)
-    throw new Error(`Failed to get shared files: ${error}`)
-  }
+// Get ALL files from OneDrive (both my files and shared with me)
+async function getAllOneDriveFiles(accessToken: string): Promise<OneDriveFile[]> {
+  const allFiles: OneDriveFile[] = []
 
-  const data = await response.json()
-  console.log("[v0] sharedWithMe raw response:", JSON.stringify(data.value?.slice(0, 3)))
-
-  // Process each shared item
-  for (const item of data.value || []) {
-    // For shared items, get the remote item info
-    const remoteItem = item.remoteItem
-    const actualItem = remoteItem || item
-    const parentRef = actualItem.parentReference
-    const driveId = parentRef?.driveId
-    const itemId = actualItem.id
-
-    // If it's a folder, scan inside it
-    if (actualItem.folder && driveId && itemId) {
-      console.log("[v0] Found shared folder:", item.name, "- scanning contents...")
-      const folderFiles = await scanFolder(accessToken, driveId, itemId)
-      allFiles.push(...folderFiles)
-    } 
-    // If it's a file, check if it's PDF or Excel
-    else if (actualItem.file) {
-      const name = item.name?.toLowerCase() || ""
-      if (name.endsWith(".xlsx") || name.endsWith(".xls") || name.endsWith(".pdf")) {
-        const fileInfo = actualItem.file
-        allFiles.push({
-          id: remoteItem ? remoteItem.id : item.id,
-          name: item.name,
-          driveId: driveId,
-          mimeType: fileInfo?.mimeType || "",
-        })
-        console.log("[v0] Found shared file:", item.name)
+  // 1. Get files shared with me
+  try {
+    const sharedResult = await listSharedWithMe(accessToken)
+    allFiles.push(...sharedResult.files)
+    
+    // Scan shared folders
+    for (const folder of sharedResult.folders) {
+      if (folder.driveId && folder.id) {
+        const folderFiles = await getAllFilesInFolder(accessToken, folder.driveId, folder.id)
+        allFiles.push(...folderFiles)
       }
     }
+  } catch (err) {
+    console.error("[v0] Error fetching shared files:", err)
+  }
+
+  // 2. Get my own files from root drive
+  try {
+    const myFilesResult = await listMyFiles(accessToken)
+    allFiles.push(...myFilesResult.files)
+    
+    // Scan my folders
+    for (const folder of myFilesResult.folders) {
+      if (folder.driveId && folder.id) {
+        const folderFiles = await getAllFilesInFolder(accessToken, folder.driveId, folder.id)
+        allFiles.push(...folderFiles)
+      }
+    }
+  } catch (err) {
+    console.error("[v0] Error fetching my files:", err)
   }
 
   return allFiles
 }
 
-// Recursively scan folder for Excel/PDF files
-async function scanFolder(
-  accessToken: string, 
-  driveId: string, 
-  folderId: string
-): Promise<Array<{ id: string; name: string; driveId: string; mimeType: string }>> {
-  const files: Array<{ id: string; name: string; driveId: string; mimeType: string }> = []
+// List my own files
+async function listMyFiles(accessToken: string): Promise<{ files: OneDriveFile[]; folders: OneDriveFolder[] }> {
+  const endpoint = "https://graph.microsoft.com/v1.0/me/drive/root/children"
 
-  const endpoint = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${folderId}/children`
+  const response = await fetch(endpoint, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+  })
+
+  if (!response.ok) {
+    const error = await response.text()
+    throw new Error(`Failed to list my files: ${error}`)
+  }
+
+  const data = await response.json()
   
+  // Get drive ID from the first item's parent reference
+  let driveId: string | undefined
+  if (data.value?.length > 0) {
+    driveId = data.value[0].parentReference?.driveId
+  }
+  
+  return parseItems(data.value || [], driveId)
+}
+
+// List files shared with the current user (same logic as /api/onedrive/files)
+async function listSharedWithMe(accessToken: string): Promise<{ files: OneDriveFile[]; folders: OneDriveFolder[] }> {
+  const endpoint = "https://graph.microsoft.com/v1.0/me/drive/sharedWithMe"
+
+  const response = await fetch(endpoint, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+  })
+
+  if (!response.ok) {
+    const error = await response.text()
+    throw new Error(`Failed to list shared files: ${error}`)
+  }
+
+  const data = await response.json()
+  return parseItems(data.value || [])
+}
+
+// Recursively get all files in a folder
+async function getAllFilesInFolder(accessToken: string, driveId: string, folderId: string): Promise<OneDriveFile[]> {
+  const allFiles: OneDriveFile[] = []
+  const endpoint = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${folderId}/children`
+
   const response = await fetch(endpoint, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -88,32 +119,67 @@ async function scanFolder(
   })
 
   if (!response.ok) {
-    console.error("[v0] Failed to scan folder:", folderId)
-    return files
+    return allFiles
   }
 
   const data = await response.json()
+  const { files, folders } = parseItems(data.value || [], driveId)
 
-  for (const item of data.value || []) {
-    if (item.folder) {
-      // Recursively scan subfolders
-      const subFiles = await scanFolder(accessToken, driveId, item.id)
-      files.push(...subFiles)
-    } else if (item.file) {
-      const name = item.name?.toLowerCase() || ""
-      if (name.endsWith(".xlsx") || name.endsWith(".xls") || name.endsWith(".pdf")) {
+  allFiles.push(...files)
+
+  // Recursively get files from subfolders
+  for (const folder of folders) {
+    if (folder.driveId && folder.id) {
+      const subFiles = await getAllFilesInFolder(accessToken, folder.driveId, folder.id)
+      allFiles.push(...subFiles)
+    }
+  }
+
+  return allFiles
+}
+
+// Parse Graph API response items into files and folders (same logic as /api/onedrive/files)
+function parseItems(
+  items: Array<Record<string, unknown>>,
+  parentDriveId?: string
+): { files: OneDriveFile[]; folders: OneDriveFolder[] } {
+  const files: OneDriveFile[] = []
+  const folders: OneDriveFolder[] = []
+
+  for (const item of items) {
+    // For shared items, get the remote item info
+    const remoteItem = item.remoteItem as Record<string, unknown> | undefined
+    const actualItem = remoteItem || item
+    const parentRef = actualItem.parentReference as Record<string, unknown> | undefined
+    const driveId = parentRef?.driveId as string || parentDriveId
+
+    if (actualItem.folder) {
+      folders.push({
+        id: remoteItem ? (remoteItem.id as string) : (item.id as string),
+        name: item.name as string,
+        driveId: driveId,
+      })
+    } else if (actualItem.file) {
+      const name = item.name as string
+      // Filter to only PDF and Excel files
+      const isPdfOrExcel =
+        name.toLowerCase().endsWith(".pdf") ||
+        name.toLowerCase().endsWith(".xlsx") ||
+        name.toLowerCase().endsWith(".xls")
+
+      if (isPdfOrExcel) {
+        const fileInfo = actualItem.file as Record<string, unknown>
         files.push({
-          id: item.id,
-          name: item.name,
+          id: remoteItem ? (remoteItem.id as string) : (item.id as string),
+          name: name,
           driveId: driveId,
-          mimeType: item.file?.mimeType || "",
+          mimeType: fileInfo?.mimeType as string,
         })
-        console.log("[v0] Found file in folder:", item.name)
       }
     }
   }
 
-  return files
+  return { files, folders }
 }
 
 // Download file content
@@ -185,9 +251,9 @@ export async function POST() {
       )
     }
 
-    // Get all shared files
-    console.log("[v0] Fetching shared files...")
-    const files = await getSharedFiles(accessToken)
+    // Get ALL files (my files + shared with me)
+    console.log("[v0] Fetching all OneDrive files...")
+    const files = await getAllOneDriveFiles(accessToken)
     console.log("[v0] Found files:", files.length, files.map(f => f.name))
 
     if (files.length === 0) {
@@ -200,7 +266,7 @@ export async function POST() {
           totalNewRows: 0,
           suppliers: [],
         },
-        debug: "No files found in sharedWithMe. Make sure files are shared with you.",
+        debug: "No PDF/Excel files found in OneDrive (my files + shared).",
       })
     }
 
