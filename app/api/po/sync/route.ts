@@ -8,40 +8,108 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 })
 
-// Get all shared files from OneDrive
+// Get all shared files from OneDrive (recursively)
 async function getSharedFiles(accessToken: string) {
-  const response = await fetch(
-    "https://graph.microsoft.com/v1.0/me/drive/sharedWithMe",
-    {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    }
-  )
-
-  if (!response.ok) {
-    const error = await response.text()
-    throw new Error(`Failed to get shared files: ${error}`)
-  }
-
-  const data = await response.json()
-  const files: Array<{
+  const allFiles: Array<{
     id: string
     name: string
     driveId: string
     mimeType: string
   }> = []
 
+  // First, get shared items
+  const response = await fetch(
+    "https://graph.microsoft.com/v1.0/me/drive/sharedWithMe",
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    }
+  )
+
+  if (!response.ok) {
+    const error = await response.text()
+    console.error("[v0] sharedWithMe error:", error)
+    throw new Error(`Failed to get shared files: ${error}`)
+  }
+
+  const data = await response.json()
+  console.log("[v0] sharedWithMe raw response:", JSON.stringify(data.value?.slice(0, 3)))
+
+  // Process each shared item
   for (const item of data.value || []) {
-    // Only include Excel and PDF files
-    const name = item.name?.toLowerCase() || ""
-    if (name.endsWith(".xlsx") || name.endsWith(".xls") || name.endsWith(".pdf")) {
-      files.push({
-        id: item.remoteItem?.id || item.id,
-        name: item.name,
-        driveId: item.remoteItem?.parentReference?.driveId || item.parentReference?.driveId,
-        mimeType: item.file?.mimeType || "",
-      })
+    // For shared items, get the remote item info
+    const remoteItem = item.remoteItem
+    const actualItem = remoteItem || item
+    const parentRef = actualItem.parentReference
+    const driveId = parentRef?.driveId
+    const itemId = actualItem.id
+
+    // If it's a folder, scan inside it
+    if (actualItem.folder && driveId && itemId) {
+      console.log("[v0] Found shared folder:", item.name, "- scanning contents...")
+      const folderFiles = await scanFolder(accessToken, driveId, itemId)
+      allFiles.push(...folderFiles)
+    } 
+    // If it's a file, check if it's PDF or Excel
+    else if (actualItem.file) {
+      const name = item.name?.toLowerCase() || ""
+      if (name.endsWith(".xlsx") || name.endsWith(".xls") || name.endsWith(".pdf")) {
+        const fileInfo = actualItem.file
+        allFiles.push({
+          id: remoteItem ? remoteItem.id : item.id,
+          name: item.name,
+          driveId: driveId,
+          mimeType: fileInfo?.mimeType || "",
+        })
+        console.log("[v0] Found shared file:", item.name)
+      }
+    }
+  }
+
+  return allFiles
+}
+
+// Recursively scan folder for Excel/PDF files
+async function scanFolder(
+  accessToken: string, 
+  driveId: string, 
+  folderId: string
+): Promise<Array<{ id: string; name: string; driveId: string; mimeType: string }>> {
+  const files: Array<{ id: string; name: string; driveId: string; mimeType: string }> = []
+
+  const endpoint = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${folderId}/children`
+  
+  const response = await fetch(endpoint, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  })
+
+  if (!response.ok) {
+    console.error("[v0] Failed to scan folder:", folderId)
+    return files
+  }
+
+  const data = await response.json()
+
+  for (const item of data.value || []) {
+    if (item.folder) {
+      // Recursively scan subfolders
+      const subFiles = await scanFolder(accessToken, driveId, item.id)
+      files.push(...subFiles)
+    } else if (item.file) {
+      const name = item.name?.toLowerCase() || ""
+      if (name.endsWith(".xlsx") || name.endsWith(".xls") || name.endsWith(".pdf")) {
+        files.push({
+          id: item.id,
+          name: item.name,
+          driveId: driveId,
+          mimeType: item.file?.mimeType || "",
+        })
+        console.log("[v0] Found file in folder:", item.name)
+      }
     }
   }
 
