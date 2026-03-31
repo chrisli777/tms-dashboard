@@ -214,7 +214,7 @@ export function SyncPODialog() {
           Update PO
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[85vh] max-w-5xl overflow-hidden">
+      <DialogContent className="flex h-[85vh] max-h-[85vh] w-[90vw] max-w-[90vw] flex-col resize overflow-auto">
         <DialogHeader>
           <DialogTitle>
             {step === "auth" && "Sign in to OneDrive"}
