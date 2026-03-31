@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { getAuthorizationUrl, clearAuthCookies } from "@/lib/microsoft-auth"
-import { cookies } from "next/headers"
+import { cookies, headers } from "next/headers"
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -21,15 +21,23 @@ export async function GET(request: Request) {
   const cookieStore = await cookies()
   cookieStore.set("ms_oauth_state", state, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    secure: true,  // Always use secure for HTTPS
+    sameSite: "none",  // Allow cross-site for OAuth redirect
     maxAge: 60 * 10, // 10 minutes
     path: "/",
   })
 
-  // Get the base URL for redirect
-  const baseUrl = new URL(request.url).origin
+  // Use NEXT_PUBLIC_APP_URL env var (for production) or detect from headers
+  let baseUrl = process.env.NEXT_PUBLIC_APP_URL
+  if (!baseUrl) {
+    const headersList = await headers()
+    const host = headersList.get("x-forwarded-host") || headersList.get("host") || "localhost:3000"
+    const protocol = headersList.get("x-forwarded-proto") || "https"
+    baseUrl = `${protocol}://${host}`
+  }
   const redirectUri = `${baseUrl}/api/auth/microsoft/callback`
+  
+  console.log("[v0] OAuth redirect URI:", redirectUri)
 
   const authUrl = getAuthorizationUrl(redirectUri, state)
 
