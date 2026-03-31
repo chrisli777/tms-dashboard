@@ -342,12 +342,26 @@ export async function POST() {
           })
           
           try {
-            // Call Claude with the scm-file-processor skill
-            const response = await anthropic.messages.create({
+            // Call Claude with the scm-file-processor skill using beta API
+            const response = await anthropic.beta.messages.create({
               model: "claude-sonnet-4-20250514",
               max_tokens: 8192,
-              // @ts-expect-error - skills parameter is valid but not in types yet
-              skills: ["skill1_017edr8rang10BJtVWXeqdrK"], // scm-file-processor skill
+              betas: ["code-execution-2025-08-25", "skills-2025-10-02"],
+              container: {
+                skills: [
+                  {
+                    type: "custom",
+                    skill_id: "skill1_017edr8rang10BJtVWXeqdrK", // scm-file-processor
+                    version: "latest",
+                  },
+                ],
+              },
+              tools: [
+                {
+                  type: "code_execution_20250825",
+                  name: "code_execution",
+                },
+              ],
               messages: [
                 {
                   role: "user",
