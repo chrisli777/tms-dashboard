@@ -4,7 +4,6 @@ import { useState, useMemo } from "react"
 import { OrderKPICards } from "./order-kpi-cards"
 import { OrderFilterBar } from "./order-filter-bar"
 import { OrderTable } from "./order-table"
-import { ImportPODialog } from "./import-po-dialog"
 import { SyncPODialog } from "./sync-po-dialog"
 import type { OrderSummary } from "@/lib/order-data"
 
@@ -64,10 +63,7 @@ export function OrderDashboard({ initialData }: OrderDashboardProps) {
             Manage and track all purchase orders
           </p>
         </div>
-        <div className="flex gap-2">
-          <SyncPODialog />
-          <ImportPODialog />
-        </div>
+        <SyncPODialog />
       </div>
 
       {/* KPI Cards */}
