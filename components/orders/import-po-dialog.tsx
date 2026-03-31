@@ -132,15 +132,21 @@ export function ImportPODialog() {
     }
   }
 
-  const handleSignIn = () => {
-    // Redirect to Microsoft login
-    window.location.href = `/api/auth/microsoft/login?returnUrl=${encodeURIComponent(window.location.pathname)}`
+  const handleSignIn = (forceConsent: boolean = false) => {
+    // Redirect to Microsoft login, with optional force consent for new permissions
+    const forceParam = forceConsent ? "&force=true" : ""
+    window.location.href = `/api/auth/microsoft/login?returnUrl=${encodeURIComponent(window.location.pathname)}${forceParam}`
   }
 
   const handleSignOut = async () => {
     await fetch("/api/auth/microsoft/logout", { method: "POST" })
     setAuthStatus(null)
     setStep("auth")
+  }
+
+  const handleReauthorize = () => {
+    // Force re-consent to get updated permissions
+    handleSignIn(true)
   }
 
   const loadFiles = async () => {
@@ -361,15 +367,20 @@ export function ImportPODialog() {
                     Sign in with your Microsoft account to access shared files
                   </p>
                 </div>
-                <Button onClick={handleSignIn} size="lg" className="gap-2">
-                  <svg viewBox="0 0 23 23" className="size-5">
-                    <path fill="#f35325" d="M1 1h10v10H1z" />
-                    <path fill="#81bc06" d="M12 1h10v10H12z" />
-                    <path fill="#05a6f0" d="M1 12h10v10H1z" />
-                    <path fill="#ffba08" d="M12 12h10v10H12z" />
-                  </svg>
-                  Sign in with Microsoft
-                </Button>
+                <div className="flex flex-col gap-2">
+                  <Button onClick={() => handleSignIn(true)} size="lg" className="gap-2">
+                    <svg viewBox="0 0 23 23" className="size-5">
+                      <path fill="#f35325" d="M1 1h10v10H1z" />
+                      <path fill="#81bc06" d="M12 1h10v10H12z" />
+                      <path fill="#05a6f0" d="M1 12h10v10H1z" />
+                      <path fill="#ffba08" d="M12 12h10v10H12z" />
+                    </svg>
+                    Sign in with Microsoft
+                  </Button>
+                  <p className="text-xs text-muted-foreground text-center">
+                    You will be asked to grant access to OneDrive files
+                  </p>
+                </div>
               </>
             )}
           </div>

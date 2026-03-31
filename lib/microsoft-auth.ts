@@ -17,7 +17,7 @@ const SCOPES = [
   "Sites.Read.All",
 ].join(" ")
 
-export function getAuthorizationUrl(redirectUri: string, state: string): string {
+export function getAuthorizationUrl(redirectUri: string, state: string, forceConsent: boolean = false): string {
   const params = new URLSearchParams({
     client_id: CLIENT_ID,
     response_type: "code",
@@ -25,7 +25,9 @@ export function getAuthorizationUrl(redirectUri: string, state: string): string 
     response_mode: "query",
     scope: SCOPES,
     state: state,
-    prompt: "select_account",
+    // Use "consent" to force re-authorization with new permissions
+    // Use "select_account" for normal login
+    prompt: forceConsent ? "consent" : "select_account",
   })
 
   return `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/authorize?${params}`
