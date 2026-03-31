@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { getAuthorizationUrl, clearAuthCookies } from "@/lib/microsoft-auth"
-import { cookies } from "next/headers"
+import { cookies, headers } from "next/headers"
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -27,9 +27,14 @@ export async function GET(request: Request) {
     path: "/",
   })
 
-  // Get the base URL for redirect
-  const baseUrl = new URL(request.url).origin
+  // Get the correct public URL using headers (handles serverless/proxy environments)
+  const headersList = await headers()
+  const host = headersList.get("x-forwarded-host") || headersList.get("host") || "localhost:3000"
+  const protocol = headersList.get("x-forwarded-proto") || "https"
+  const baseUrl = `${protocol}://${host}`
   const redirectUri = `${baseUrl}/api/auth/microsoft/callback`
+  
+  console.log("[v0] OAuth redirect URI:", redirectUri)
 
   const authUrl = getAuthorizationUrl(redirectUri, state)
 
