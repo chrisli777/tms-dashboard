@@ -236,32 +236,46 @@ async function listSharedWithMe(accessToken: string): Promise<{ files: OneDriveF
   return parseItems(data.value || [])
 }
 
-// Recursively get all files in a folder
-async function getAllFilesInFolder(accessToken: string, driveId: string, folderId: string): Promise<OneDriveFile[]> {
+// Recursively get all files in a folder with pagination
+async function getAllFilesInFolder(accessToken: string, driveId: string, folderId: string, depth = 0): Promise<OneDriveFile[]> {
   const allFiles: OneDriveFile[] = []
-  const endpoint = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${folderId}/children`
-
-  const response = await fetch(endpoint, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
-  })
-
-  if (!response.ok) {
+  
+  // Limit recursion depth to prevent infinite loops
+  if (depth > 10) {
+    console.log("[v0] Max folder depth reached")
     return allFiles
   }
+  
+  let nextLink: string | null = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${folderId}/children?$top=200`
 
-  const data = await response.json()
-  const { files, folders } = parseItems(data.value || [], driveId)
+  while (nextLink) {
+    const response = await fetch(nextLink, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    })
 
-  allFiles.push(...files)
-
-  // Recursively get files from subfolders
-  for (const folder of folders) {
-    if (folder.driveId && folder.id) {
-      const subFiles = await getAllFilesInFolder(accessToken, folder.driveId, folder.id)
-      allFiles.push(...subFiles)
+    if (!response.ok) {
+      console.log("[v0] Failed to list folder:", folderId, "status:", response.status)
+      break
     }
+
+    const data = await response.json()
+    const { files, folders } = parseItems(data.value || [], driveId)
+
+    allFiles.push(...files)
+    console.log("[v0] Found", files.length, "files in folder depth", depth)
+
+    // Recursively get files from subfolders
+    for (const folder of folders) {
+      if (folder.driveId && folder.id) {
+        const subFiles = await getAllFilesInFolder(accessToken, folder.driveId, folder.id, depth + 1)
+        allFiles.push(...subFiles)
+      }
+    }
+
+    // Handle pagination
+    nextLink = data["@odata.nextLink"] || null
   }
 
   return allFiles
@@ -360,7 +374,7 @@ function isPotentialPOFile(filename: string): boolean {
   return false
 }
 
-// Parse Excel to text
+// Parse Excel to text - include ALL sheets with more rows for container data
 function parseExcelToText(buffer: ArrayBuffer, filename: string): string {
   const workbook = XLSX.read(buffer, { type: "array" })
   const result: string[] = []
@@ -374,7 +388,8 @@ function parseExcelToText(buffer: ArrayBuffer, filename: string): string {
 
     result.push(`\n=== Sheet: ${sheetName} ===`)
 
-    const maxRows = Math.min(data.length, 200)
+    // Include more rows (up to 300) to ensure container data is captured
+    const maxRows = Math.min(data.length, 300)
     for (let i = 0; i < maxRows; i++) {
       const row = data[i]
       if (Array.isArray(row) && row.some(cell => cell !== "")) {
@@ -491,8 +506,9 @@ export async function POST() {
         const excelFiles = fileContents.filter(f => !f.content.startsWith("[PDF:"))
 
         for (const file of excelFiles) {
+          // Send more content - up to 500 lines to include container sheet data
           const lines = file.content.split("\n")
-          const truncatedContent = lines.slice(0, 150).join("\n")
+          const fullContent = lines.slice(0, 500).join("\n")
           
           send("progress", { 
             step: "process", 
@@ -509,7 +525,10 @@ export async function POST() {
               messages: [
                 {
                   role: "user",
-                  content: `Parse this file and extract Order Management data as JSON:\n\n${truncatedContent}`,
+                  content: `Parse this Excel file and extract Order Management data as JSON.
+IMPORTANT: Extract container info from "details of containers" sheet if present.
+
+${fullContent}`,
                 },
               ],
             })
