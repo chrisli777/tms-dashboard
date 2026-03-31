@@ -342,30 +342,67 @@ export async function POST() {
           })
           
           try {
-            // Call Claude with the scm-file-processor skill using beta API
-            const response = await anthropic.beta.messages.create({
+            // Call Claude with embedded scm-file-processor skill logic
+            const response = await anthropic.messages.create({
               model: "claude-sonnet-4-20250514",
               max_tokens: 8192,
-              betas: ["code-execution-2025-08-25", "skills-2025-10-02"],
-              container: {
-                skills: [
-                  {
-                    type: "custom",
-                    skill_id: "skill1_017edr8rang10BJtVWXeqdrK", // scm-file-processor
-                    version: "latest",
-                  },
-                ],
-              },
-              tools: [
-                {
-                  type: "code_execution_20250825",
-                  name: "code_execution",
-                },
-              ],
+              system: `You are the SCM File Processor. Parse supplier shipment files into a unified 15-column Order Management table.
+
+## FILE TYPE DETECTION
+First, determine if this file is a valid PO/Invoice file by checking:
+1. **HX→Genie (.xlsx)**: Has sheets "invoice" AND "details of containers"
+2. **HX→Clark (.xls)**: Has sheet with "invoice", file name contains "CLARK"
+3. **AMC (PDF)**: Contains invoice number pattern like "2512060"
+4. **TJJSH (.xlsx)**: File name contains "TJLT"
+
+If the file does NOT match any pattern, return: {"skip": true, "reason": "Not a recognized PO/Invoice file"}
+
+## EXTRACTION RULES FOR HX FILES
+From "invoice" sheet:
+- Row ~1-15: Find INVOICE NO. and DELIVERY DATE (ETD)
+- Header row ~24: Look for "PART NO.", "P.O NO.", "Q'TY", "$/PCS", "AMOUNT"
+- Data rows: Extract SKU (col A), PO (col D), QTY (col E), unit_price (col H), amount (col I)
+- Skip rows where QTY is not a number or <= 0
+
+From "details of containers" sheet:
+- R1,C3 = Vessel, R2,C3 = BL#, R5,C3 = ETD
+- Container rows start ~R8: Container NO. (col B), detect type from text (20GP/40GP/40HQ)
+
+## OUTPUT FORMAT
+Return ONLY valid JSON:
+{
+  "rows": [
+    {
+      "whiPo": "PO number",
+      "supplierInvoice": "invoice number",
+      "supplier": "HX|AMC|TJJSH",
+      "customer": "Genie|Clark|Deere",
+      "containerNo": "container number",
+      "containerType": "20GP|40GP|40HQ",
+      "blNo": "BL number",
+      "vessel": "vessel name",
+      "sku": "part number with full suffix",
+      "description": "",
+      "qty": number,
+      "unitPrice": number ($/PCS, NOT $/MT),
+      "amount": number,
+      "etd": "YYYY-MM-DD",
+      "eta": "YYYY-MM-DD or ETD+30days"
+    }
+  ],
+  "supplier": "HX|AMC|TJJSH"
+}
+
+RULES:
+- Each (Invoice, Container, SKU) = one row
+- Container type MUST be exactly: 20GP, 40GP, or 40HQ
+- Only include rows where qty > 0
+- Dates in YYYY-MM-DD format
+- If multiple containers for same SKU, create separate rows with qty split`,
               messages: [
                 {
                   role: "user",
-                  content: `Process this file and extract Order Management table data as JSON:\n\nFile: ${file.name}\n\n${truncatedContent}`,
+                  content: `Parse this file and extract Order Management data:\n\n${truncatedContent}`,
                 },
               ],
             })
@@ -377,13 +414,26 @@ export async function POST() {
               if (jsonMatch) {
                 const jsonStr = jsonMatch[1] || jsonMatch[0]
                 const parsed = JSON.parse(jsonStr)
-                if (parsed.rows) {
+                
+                // Check if file was skipped
+                if (parsed.skip) {
+                  send("progress", { 
+                    step: "process", 
+                    message: `Skipped: ${file.name} (${parsed.reason})`, 
+                    percent: 55 + Math.round((processedCount / Math.max(excelFiles.length, 1)) * 40)
+                  })
+                } else if (parsed.rows && parsed.rows.length > 0) {
                   allRows.push(...parsed.rows)
+                  if (parsed.supplier) {
+                    suppliers.add(parsed.supplier)
+                  }
+                  processedFiles.push(file.name)
+                  send("progress", { 
+                    step: "process", 
+                    message: `Extracted ${parsed.rows.length} rows from: ${file.name}`, 
+                    percent: 55 + Math.round((processedCount / Math.max(excelFiles.length, 1)) * 40)
+                  })
                 }
-                if (parsed.supplier) {
-                  suppliers.add(parsed.supplier)
-                }
-                processedFiles.push(file.name)
               }
             }
           } catch (err) {
