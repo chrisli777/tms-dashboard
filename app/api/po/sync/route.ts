@@ -237,137 +237,167 @@ function parseExcelToText(buffer: ArrayBuffer, filename: string): string {
 }
 
 export async function POST() {
-  console.log("[v0] Sync API called")
+  // Use streaming to send real-time progress updates
+  const encoder = new TextEncoder()
   
-  try {
-    // Check authentication
-    const accessToken = await getValidAccessToken()
-    console.log("[v0] Access token:", accessToken ? "exists" : "missing")
-    
-    if (!accessToken) {
-      return NextResponse.json(
-        { error: "not_authenticated", message: "Please sign in with Microsoft" },
-        { status: 401 }
-      )
-    }
-
-    // Get ALL files (my files + shared with me)
-    console.log("[v0] Fetching all OneDrive files...")
-    const files = await getAllOneDriveFiles(accessToken)
-    console.log("[v0] Found files:", files.length, files.map(f => f.name))
-
-    if (files.length === 0) {
-      console.log("[v0] No files found, returning empty result")
-      return NextResponse.json({
-        newRows: [],
-        filesProcessed: [],
-        summary: {
-          totalFiles: 0,
-          totalNewRows: 0,
-          suppliers: [],
-        },
-        debug: "No PDF/Excel files found in OneDrive (my files + shared).",
-      })
-    }
-
-    // Download and parse all files
-    console.log("[v0] Downloading and parsing files...")
-    const fileContents: Array<{ name: string; content: string }> = []
-
-    for (const file of files) {
-      try {
-        console.log("[v0] Processing file:", file.name)
-        const buffer = await downloadFile(accessToken, file.driveId, file.id)
-
-        if (file.name.toLowerCase().endsWith(".xlsx") || file.name.toLowerCase().endsWith(".xls")) {
-          const text = parseExcelToText(buffer, file.name)
-          fileContents.push({ name: file.name, content: text })
-        } else if (file.name.toLowerCase().endsWith(".pdf")) {
-          // For PDF, we'll send to Claude directly with base64
-          const base64 = Buffer.from(buffer).toString("base64")
-          fileContents.push({ name: file.name, content: `[PDF:${base64}]` })
-        }
-      } catch (err) {
-        console.error(`[v0] Failed to process file ${file.name}:`, err)
+  const stream = new ReadableStream({
+    async start(controller) {
+      const send = (event: string, data: unknown) => {
+        controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`))
       }
-    }
 
-    // Process files one by one to avoid token limits
-    console.log("[v0] Processing files with Claude...")
-    const allRows: Array<Record<string, unknown>> = []
-    const processedFiles: string[] = []
-    const suppliers = new Set<string>()
+      try {
+        send("progress", { step: "auth", message: "Checking authentication...", percent: 5 })
+        
+        // Check authentication
+        const accessToken = await getValidAccessToken()
+        
+        if (!accessToken) {
+          send("error", { error: "not_authenticated", message: "Please sign in with Microsoft" })
+          controller.close()
+          return
+        }
 
-    for (const file of fileContents) {
-      // Skip PDFs for now, focus on Excel
-      if (file.content.startsWith("[PDF:")) continue
-      
-      // Limit content to avoid token limits (first 50 rows)
-      const lines = file.content.split("\n")
-      const truncatedContent = lines.slice(0, 100).join("\n")
-      
-      console.log("[v0] Calling Claude for file:", file.name)
-      
-      const response = await anthropic.messages.create({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 8192,
-        system: `Use the scm-file-processor skill to process this Excel data and extract order information.
+        send("progress", { step: "scan", message: "Scanning OneDrive...", percent: 10 })
+        
+        // Get ALL files (my files + shared with me)
+        const files = await getAllOneDriveFiles(accessToken)
+
+        if (files.length === 0) {
+          send("complete", {
+            newRows: [],
+            filesProcessed: [],
+            summary: { totalFiles: 0, totalNewRows: 0, suppliers: [] },
+            debug: "No PDF/Excel files found in OneDrive.",
+          })
+          controller.close()
+          return
+        }
+
+        send("progress", { 
+          step: "download", 
+          message: `Found ${files.length} files. Downloading...`, 
+          percent: 20,
+          filesFound: files.map(f => f.name)
+        })
+
+        // Download and parse all files
+        const fileContents: Array<{ name: string; content: string }> = []
+        let downloadedCount = 0
+
+        for (const file of files) {
+          try {
+            const buffer = await downloadFile(accessToken, file.driveId!, file.id)
+
+            if (file.name.toLowerCase().endsWith(".xlsx") || file.name.toLowerCase().endsWith(".xls")) {
+              const text = parseExcelToText(buffer, file.name)
+              fileContents.push({ name: file.name, content: text })
+            } else if (file.name.toLowerCase().endsWith(".pdf")) {
+              const base64 = Buffer.from(buffer).toString("base64")
+              fileContents.push({ name: file.name, content: `[PDF:${base64}]` })
+            }
+            
+            downloadedCount++
+            const percent = 20 + Math.round((downloadedCount / files.length) * 30)
+            send("progress", { 
+              step: "download", 
+              message: `Downloaded ${downloadedCount}/${files.length}: ${file.name}`, 
+              percent 
+            })
+          } catch (err) {
+            console.error(`[v0] Failed to process file ${file.name}:`, err)
+          }
+        }
+
+        send("progress", { step: "process", message: "Processing files with Claude...", percent: 55 })
+
+        // Process files one by one
+        const allRows: Array<Record<string, unknown>> = []
+        const processedFiles: string[] = []
+        const suppliers = new Set<string>()
+        let processedCount = 0
+        const excelFiles = fileContents.filter(f => !f.content.startsWith("[PDF:"))
+
+        for (const file of excelFiles) {
+          const lines = file.content.split("\n")
+          const truncatedContent = lines.slice(0, 100).join("\n")
+          
+          send("progress", { 
+            step: "process", 
+            message: `Processing: ${file.name}`, 
+            percent: 55 + Math.round((processedCount / Math.max(excelFiles.length, 1)) * 40)
+          })
+          
+          try {
+            const response = await anthropic.messages.create({
+              model: "claude-sonnet-4-20250514",
+              max_tokens: 8192,
+              system: `Use the scm-file-processor skill to process this Excel data and extract order information.
 Return JSON only with structure: { "rows": [...], "supplier": "string" }
 Each row: { whiPo, supplierInvoice, supplier, customer, containerNo, containerType, blNo, vessel, sku, description, qty, unitPrice, amount, etd, eta }`,
-        messages: [
-          {
-            role: "user",
-            content: `Process this file: ${file.name}\n\n${truncatedContent}`,
-          },
-        ],
-      })
+              messages: [
+                {
+                  role: "user",
+                  content: `Process this file: ${file.name}\n\n${truncatedContent}`,
+                },
+              ],
+            })
 
-      const textContent = response.content.find(c => c.type === "text")
-      if (textContent && textContent.type === "text") {
-        try {
-          const jsonMatch = textContent.text.match(/```json\n?([\s\S]*?)\n?```/) ||
-                           textContent.text.match(/\{[\s\S]*\}/)
-          if (jsonMatch) {
-            const jsonStr = jsonMatch[1] || jsonMatch[0]
-            const parsed = JSON.parse(jsonStr)
-            if (parsed.rows) {
-              allRows.push(...parsed.rows)
+            const textContent = response.content.find(c => c.type === "text")
+            if (textContent && textContent.type === "text") {
+              const jsonMatch = textContent.text.match(/```json\n?([\s\S]*?)\n?```/) ||
+                               textContent.text.match(/\{[\s\S]*\}/)
+              if (jsonMatch) {
+                const jsonStr = jsonMatch[1] || jsonMatch[0]
+                const parsed = JSON.parse(jsonStr)
+                if (parsed.rows) {
+                  allRows.push(...parsed.rows)
+                }
+                if (parsed.supplier) {
+                  suppliers.add(parsed.supplier)
+                }
+                processedFiles.push(file.name)
+              }
             }
-            if (parsed.supplier) {
-              suppliers.add(parsed.supplier)
-            }
-            processedFiles.push(file.name)
+          } catch (err) {
+            console.error("[v0] Claude error for:", file.name, err)
+            send("progress", { 
+              step: "process", 
+              message: `Error processing: ${file.name}`, 
+              percent: 55 + Math.round((processedCount / Math.max(excelFiles.length, 1)) * 40)
+            })
           }
-        } catch {
-          console.error("[v0] Failed to parse response for:", file.name)
+          
+          processedCount++
         }
+
+        send("progress", { step: "complete", message: "Sync complete!", percent: 100 })
+
+        send("complete", {
+          newRows: allRows,
+          filesProcessed: processedFiles,
+          summary: {
+            totalFiles: fileContents.length,
+            totalNewRows: allRows.length,
+            suppliers: Array.from(suppliers),
+          },
+          debug: `Processed ${processedFiles.length} of ${fileContents.length} files`,
+        })
+        
+        controller.close()
+      } catch (err) {
+        console.error("[v0] Sync error:", err)
+        send("error", { error: err instanceof Error ? err.message : "Sync failed" })
+        controller.close()
       }
-    }
+    },
+  })
 
-    const result = {
-      rows: allRows,
-      filesProcessed: processedFiles,
-      suppliers: Array.from(suppliers),
-    }
-
-    const finalResult = {
-      newRows: result.rows || [],
-      filesProcessed: result.filesProcessed || fileContents.map(f => f.name),
-      summary: {
-        totalFiles: fileContents.length,
-        totalNewRows: result.rows?.length || 0,
-        suppliers: result.suppliers || [],
-      },
-      debug: `Found ${files.length} files: ${files.map(f => f.name).join(", ")}`,
-    }
-    
-    console.log("[v0] Sync complete - files:", finalResult.summary.totalFiles, "rows:", finalResult.summary.totalNewRows)
-    return NextResponse.json(finalResult)
-  } catch (err) {
-    console.error("[v0] Sync error:", err)
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Sync failed" },
-      { status: 500 }
-    )
-  }
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      "Connection": "keep-alive",
+    },
+  })
 }
