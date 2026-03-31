@@ -131,7 +131,7 @@ export async function setAuthCookies(
   // Access token - shorter lived
   cookieStore.set(ACCESS_TOKEN_COOKIE, accessToken, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: true,
     sameSite: "lax",
     maxAge: expiresIn,
     path: "/",
@@ -140,7 +140,7 @@ export async function setAuthCookies(
   // Refresh token - longer lived (14 days)
   cookieStore.set(REFRESH_TOKEN_COOKIE, refreshToken, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: true,
     sameSite: "lax",
     maxAge: 60 * 60 * 24 * 14,
     path: "/",
@@ -149,7 +149,7 @@ export async function setAuthCookies(
   // Token expiry time
   cookieStore.set(TOKEN_EXPIRY_COOKIE, expiryTime.toString(), {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: true,
     sameSite: "lax",
     maxAge: 60 * 60 * 24 * 14,
     path: "/",

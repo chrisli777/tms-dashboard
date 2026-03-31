@@ -21,8 +21,8 @@ export async function GET(request: Request) {
   const cookieStore = await cookies()
   cookieStore.set("ms_oauth_state", state, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    secure: true,  // Always use secure for HTTPS
+    sameSite: "none",  // Allow cross-site for OAuth redirect
     maxAge: 60 * 10, // 10 minutes
     path: "/",
   })
