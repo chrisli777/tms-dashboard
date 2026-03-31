@@ -13,12 +13,15 @@ const SCM_FILE_PROCESSOR_SKILL = `# SCM File Processor
 
 Parse supplier shipment files into unified 15-column Order Management table.
 
-## Supplier Detection (from filename)
+## Supplier Detection (from filename OR folder path)
 
-- Filename contains "AMC" → supplier="AMC", customer="Genie"
-- Filename contains "Terex" → supplier="HX", customer="Genie"  
-- Filename contains "CLARK" → supplier="HX", customer="Clark"
-- Filename contains "TJLT" → supplier="TJJSH", customer="Genie"
+Check BOTH the filename AND the folder path provided:
+- Path or filename contains "AMC" → supplier="AMC", customer="Genie"
+- Path or filename contains "Terex" → supplier="HX", customer="Genie"  
+- Path or filename contains "CLARK" → supplier="HX", customer="Clark"
+- Path or filename contains "TJLT" → supplier="TJJSH", customer="Genie"
+
+Example: File "Invoice-20251115.xlsx" in folder "AMC/Invoice-20251115-25111501" → supplier="AMC"
 
 ## Output: 15-Column Table
 
@@ -142,12 +145,14 @@ interface OneDriveFile {
   name: string
   driveId?: string
   mimeType?: string
+  folderPath?: string // Track parent folder path for supplier detection
 }
 
 interface OneDriveFolder {
   id: string
   name: string
   driveId?: string
+  folderPath?: string // Track path for nested folder detection
 }
 
 // Get ALL files from OneDrive (both my files and shared with me)
@@ -159,10 +164,10 @@ async function getAllOneDriveFiles(accessToken: string): Promise<OneDriveFile[]>
     const sharedResult = await listSharedWithMe(accessToken)
     allFiles.push(...sharedResult.files)
     
-    // Scan shared folders
+    // Scan shared folders - pass folder name as initial path
     for (const folder of sharedResult.folders) {
       if (folder.driveId && folder.id) {
-        const folderFiles = await getAllFilesInFolder(accessToken, folder.driveId, folder.id)
+        const folderFiles = await getAllFilesInFolder(accessToken, folder.driveId, folder.id, folder.name)
         allFiles.push(...folderFiles)
       }
     }
@@ -175,10 +180,10 @@ async function getAllOneDriveFiles(accessToken: string): Promise<OneDriveFile[]>
     const myFilesResult = await listMyFiles(accessToken)
     allFiles.push(...myFilesResult.files)
     
-    // Scan my folders
+    // Scan my folders - pass folder name as initial path
     for (const folder of myFilesResult.folders) {
       if (folder.driveId && folder.id) {
-        const folderFiles = await getAllFilesInFolder(accessToken, folder.driveId, folder.id)
+        const folderFiles = await getAllFilesInFolder(accessToken, folder.driveId, folder.id, folder.name)
         allFiles.push(...folderFiles)
       }
     }
@@ -236,8 +241,8 @@ async function listSharedWithMe(accessToken: string): Promise<{ files: OneDriveF
   return parseItems(data.value || [])
 }
 
-// Recursively get all files in a folder with pagination
-async function getAllFilesInFolder(accessToken: string, driveId: string, folderId: string, depth = 0): Promise<OneDriveFile[]> {
+// Recursively get all files in a folder with pagination and path tracking
+async function getAllFilesInFolder(accessToken: string, driveId: string, folderId: string, folderPath = "", depth = 0): Promise<OneDriveFile[]> {
   const allFiles: OneDriveFile[] = []
   
   // Limit recursion depth to prevent infinite loops
@@ -261,15 +266,16 @@ async function getAllFilesInFolder(accessToken: string, driveId: string, folderI
     }
 
     const data = await response.json()
-    const { files, folders } = parseItems(data.value || [], driveId)
+    const { files, folders } = parseItems(data.value || [], driveId, folderPath)
 
     allFiles.push(...files)
-    console.log("[v0] Found", files.length, "files in folder depth", depth)
+    console.log("[v0] Found", files.length, "files in folder:", folderPath, "depth", depth)
 
-    // Recursively get files from subfolders
+    // Recursively get files from subfolders with updated path
     for (const folder of folders) {
       if (folder.driveId && folder.id) {
-        const subFiles = await getAllFilesInFolder(accessToken, folder.driveId, folder.id, depth + 1)
+        const newPath = folderPath ? `${folderPath}/${folder.name}` : folder.name
+        const subFiles = await getAllFilesInFolder(accessToken, folder.driveId, folder.id, newPath, depth + 1)
         allFiles.push(...subFiles)
       }
     }
@@ -281,10 +287,11 @@ async function getAllFilesInFolder(accessToken: string, driveId: string, folderI
   return allFiles
 }
 
-// Parse Graph API response items into files and folders (same logic as /api/onedrive/files)
+// Parse Graph API response items into files and folders with folder path tracking
 function parseItems(
   items: Array<Record<string, unknown>>,
-  parentDriveId?: string
+  parentDriveId?: string,
+  folderPath?: string
 ): { files: OneDriveFile[]; folders: OneDriveFolder[] } {
   const files: OneDriveFile[] = []
   const folders: OneDriveFolder[] = []
@@ -301,6 +308,7 @@ function parseItems(
         id: remoteItem ? (remoteItem.id as string) : (item.id as string),
         name: item.name as string,
         driveId: driveId,
+        folderPath: folderPath,
       })
     } else if (actualItem.file) {
       const name = item.name as string
@@ -317,6 +325,7 @@ function parseItems(
           name: name,
           driveId: driveId,
           mimeType: fileInfo?.mimeType as string,
+          folderPath: folderPath, // Track the folder path for supplier detection
         })
       }
     }
@@ -354,21 +363,23 @@ async function downloadFile(accessToken: string, driveId: string, fileId: string
   return await contentResponse.arrayBuffer()
 }
 
-// Pre-filter files by name pattern - per skill definition (any format allowed)
-function isPotentialPOFile(filename: string): boolean {
+// Pre-filter files by name OR folder path - per skill definition (any format allowed)
+function isPotentialPOFile(filename: string, folderPath?: string): boolean {
   const name = filename.toLowerCase()
+  const path = (folderPath || "").toLowerCase()
+  const combined = `${path}/${name}` // Check both folder path and filename
   
-  // HX → Genie: file contains "terex"
-  if (name.includes("terex")) return true
+  // HX → Genie: contains "terex"
+  if (combined.includes("terex")) return true
   
-  // HX → Clark: file contains "clark"
-  if (name.includes("clark")) return true
+  // HX → Clark: contains "clark"
+  if (combined.includes("clark")) return true
   
-  // TJJSH: file contains "tjlt"
-  if (name.includes("tjlt")) return true
+  // TJJSH: contains "tjlt"
+  if (combined.includes("tjlt")) return true
   
-  // AMC: file contains "amc"
-  if (name.includes("amc")) return true
+  // AMC: contains "amc" (in folder OR filename)
+  if (combined.includes("amc")) return true
   
   // All other files are skipped
   return false
@@ -446,13 +457,13 @@ export async function POST() {
           filesFound: files.map(f => f.name)
         })
 
-        // Pre-filter files by name pattern, then download
-        const potentialPOFiles = files.filter(f => isPotentialPOFile(f.name))
+        // Pre-filter files by name OR folder path pattern, then download
+        const potentialPOFiles = files.filter(f => isPotentialPOFile(f.name, f.folderPath))
         const skippedCount = files.length - potentialPOFiles.length
         
         console.log("[v0] Total files found:", files.length)
         console.log("[v0] Potential PO files:", potentialPOFiles.length)
-        console.log("[v0] PO file names:", potentialPOFiles.map(f => f.name))
+        console.log("[v0] PO files:", potentialPOFiles.map(f => `${f.folderPath}/${f.name}`))
         
         send("progress", { 
           step: "download", 
@@ -460,7 +471,7 @@ export async function POST() {
           percent: 25
         })
 
-        const fileContents: Array<{ name: string; content: string }> = []
+        const fileContents: Array<{ name: string; content: string; folderPath?: string }> = []
         let downloadedCount = 0
 
         for (const file of potentialPOFiles) {
@@ -475,10 +486,10 @@ export async function POST() {
 
             if (file.name.toLowerCase().endsWith(".xlsx") || file.name.toLowerCase().endsWith(".xls")) {
               const text = parseExcelToText(buffer, file.name)
-              fileContents.push({ name: file.name, content: text })
+              fileContents.push({ name: file.name, content: text, folderPath: file.folderPath })
             } else if (file.name.toLowerCase().endsWith(".pdf")) {
               const base64 = Buffer.from(buffer).toString("base64")
-              fileContents.push({ name: file.name, content: `[PDF:${base64}]` })
+              fileContents.push({ name: file.name, content: `[PDF:${base64}]`, folderPath: file.folderPath })
             }
             
             downloadedCount++
@@ -530,6 +541,9 @@ export async function POST() {
                 {
                   role: "user",
                   content: `Parse this Excel file and extract Order Management data as JSON.
+Folder path: ${file.folderPath || "unknown"}
+Filename: ${file.name}
+IMPORTANT: Use folder path to determine supplier (e.g. AMC folder = AMC supplier)
 IMPORTANT: Extract container info from "details of containers" sheet if present.
 
 ${fullContent}`,
