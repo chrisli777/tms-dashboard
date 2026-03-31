@@ -5,6 +5,7 @@ import { OrderKPICards } from "./order-kpi-cards"
 import { OrderFilterBar } from "./order-filter-bar"
 import { OrderTable } from "./order-table"
 import { ImportPODialog } from "./import-po-dialog"
+import { SyncPODialog } from "./sync-po-dialog"
 import type { OrderSummary } from "@/lib/order-data"
 
 interface OrderDashboardProps {
@@ -63,7 +64,10 @@ export function OrderDashboard({ initialData }: OrderDashboardProps) {
             Manage and track all purchase orders
           </p>
         </div>
-        <ImportPODialog />
+        <div className="flex gap-2">
+          <SyncPODialog />
+          <ImportPODialog />
+        </div>
       </div>
 
       {/* KPI Cards */}
