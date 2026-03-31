@@ -340,36 +340,23 @@ async function downloadFile(accessToken: string, driveId: string, fileId: string
   return await contentResponse.arrayBuffer()
 }
 
-// Pre-filter files by name pattern before sending to Claude
+// Pre-filter files by name pattern - STRICT matching for supplier files only
 function isPotentialPOFile(filename: string): boolean {
   const name = filename.toLowerCase()
   
-  // HX → Genie: contains "terex" or has invoice-like patterns
+  // HX → Genie: "Terex2025-xxx" pattern
   if (name.includes("terex")) return true
   
-  // HX → Clark: contains "clark"
-  if (name.includes("clark")) return true
+  // HX → Clark: "CLARK" in filename with .xls
+  if (name.includes("clark") && name.endsWith(".xls")) return true
   
-  // TJJSH: contains "tjlt"
+  // TJJSH: "TJLT" prefix
   if (name.includes("tjlt")) return true
   
-  // AMC: PDF files with invoice patterns
-  if (name.endsWith(".pdf") && (name.includes("invoice") || name.includes("amc") || /\d{7,8}/.test(name))) return true
+  // AMC Pipeline: "AMC PIPELINE" in name (the actual supplier pipeline file)
+  if (name.includes("amc") && name.includes("pipeline")) return true
   
-  // Pipeline files
-  if (name.includes("pipeline")) return true
-  
-  // Files with "invoice" in name
-  if (name.includes("invoice")) return true
-  
-  // Skip obvious non-PO files
-  const skipPatterns = [
-    "receipt", "put-away", "timeliness", "report", "template", 
-    "arrival_notice", "broker", "packing list", "bl.pdf"
-  ]
-  if (skipPatterns.some(p => name.includes(p))) return false
-  
-  // Default: skip unknown files to save API calls
+  // All other files are skipped - we only process known supplier formats
   return false
 }
 
