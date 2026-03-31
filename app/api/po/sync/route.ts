@@ -340,25 +340,21 @@ async function downloadFile(accessToken: string, driveId: string, fileId: string
   return await contentResponse.arrayBuffer()
 }
 
-// Pre-filter files by name pattern - per skill definition:
-// 1. HX→Genie (.xlsx): 有 "invoice" 和 "details of containers" sheet，文件名含 "Terex"
-// 2. HX→Clark (.xls): 文件名含 "CLARK"
-// 3. TJJSH (.xlsx): 文件名含 "TJLT"
-// 4. AMC (PDF): 含 invoice number 格式如 "25120601"
+// Pre-filter files by name pattern - per skill definition (any format allowed)
 function isPotentialPOFile(filename: string): boolean {
   const name = filename.toLowerCase()
   
-  // HX → Genie (.xlsx): file contains "terex"
-  if (name.includes("terex") && name.endsWith(".xlsx")) return true
+  // HX → Genie: file contains "terex"
+  if (name.includes("terex")) return true
   
-  // HX → Clark (.xls): file contains "clark"
-  if (name.includes("clark") && name.endsWith(".xls")) return true
+  // HX → Clark: file contains "clark"
+  if (name.includes("clark")) return true
   
-  // TJJSH (.xlsx): file contains "tjlt"
-  if (name.includes("tjlt") && name.endsWith(".xlsx")) return true
+  // TJJSH: file contains "tjlt"
+  if (name.includes("tjlt")) return true
   
-  // AMC (PDF): contains 8-digit invoice number like "25120601"
-  if (name.endsWith(".pdf") && /\d{8}/.test(name)) return true
+  // AMC: file contains "amc"
+  if (name.includes("amc")) return true
   
   // All other files are skipped
   return false
