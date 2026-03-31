@@ -107,43 +107,64 @@ export function SyncPODialog() {
   }
 
   const handleSync = async () => {
-    console.log("[v0] handleSync called")
     setStep("syncing")
     setError(null)
     setDebugInfo("")
-    setProgress(10)
-    setProgressMessage("Connecting to OneDrive...")
+    setProgress(5)
+    setProgressMessage("Starting sync...")
 
     try {
-      setDebugInfo("Calling /api/po/sync...")
-      // Call Claude to process all files and generate master table
       const response = await fetch("/api/po/sync", {
         method: "POST",
       })
 
-      setDebugInfo(`Response status: ${response.status}`)
-      setProgress(50)
-      setProgressMessage("Processing files with Claude...")
-
-      const data = await response.json()
-      setDebugInfo(`Response: ${JSON.stringify(data).substring(0, 1000)}`)
-
       if (!response.ok) {
-        if (data.error === "not_authenticated") {
-          // Redirect to Microsoft login
-          window.location.href = `/api/auth/microsoft/login?returnUrl=${encodeURIComponent(window.location.pathname)}`
-          return
-        }
-        throw new Error(data.message || data.error || "Sync failed")
+        const text = await response.text()
+        throw new Error(`API error: ${text}`)
       }
 
-      setProgress(100)
-      setSyncResult(data)
-      setStep("preview")
+      // Handle Server-Sent Events stream
+      const reader = response.body?.getReader()
+      if (!reader) throw new Error("No response body")
+
+      const decoder = new TextDecoder()
+      let buffer = ""
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split("\n\n")
+        buffer = lines.pop() || ""
+
+        for (const chunk of lines) {
+          const eventMatch = chunk.match(/event: (\w+)\ndata: (.+)/)
+          if (!eventMatch) continue
+
+          const [, event, dataStr] = eventMatch
+          const data = JSON.parse(dataStr)
+
+          if (event === "progress") {
+            setProgress(data.percent || 0)
+            setProgressMessage(data.message || "Processing...")
+            if (data.filesFound) {
+              setDebugInfo(`Found files: ${data.filesFound.join(", ")}`)
+            }
+          } else if (event === "complete") {
+            setSyncResult(data)
+            setStep("preview")
+          } else if (event === "error") {
+            if (data.error === "not_authenticated") {
+              window.location.href = `/api/auth/microsoft/login?returnUrl=${encodeURIComponent(window.location.pathname)}`
+              return
+            }
+            throw new Error(data.message || data.error || "Sync failed")
+          }
+        }
+      }
     } catch (err) {
-      console.log("[v0] Sync error:", err)
       setError(err instanceof Error ? err.message : "Sync failed")
-      setDebugInfo(`Error: ${err}`)
       setStep("idle")
     }
   }
