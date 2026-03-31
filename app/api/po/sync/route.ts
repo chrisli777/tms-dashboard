@@ -292,129 +292,62 @@ export async function POST() {
       }
     }
 
-    // Prepare content for Claude
-    console.log("[v0] Preparing content for Claude, files processed:", fileContents.length)
-    const filesText = fileContents
-      .filter(f => !f.content.startsWith("[PDF:"))
-      .map(f => f.content)
-      .join("\n\n---\n\n")
+    // Process files one by one to avoid token limits
+    console.log("[v0] Processing files with Claude...")
+    const allRows: Array<Record<string, unknown>> = []
+    const processedFiles: string[] = []
+    const suppliers = new Set<string>()
 
-    console.log("[v0] Calling Claude API...")
-    // Call Claude with scm-file-processor and scm-master-generator skills
-    const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 16384,
-      system: `You are an SCM (Supply Chain Management) data processor. 
+    for (const file of fileContents) {
+      // Skip PDFs for now, focus on Excel
+      if (file.content.startsWith("[PDF:")) continue
+      
+      // Limit content to avoid token limits (first 50 rows)
+      const lines = file.content.split("\n")
+      const truncatedContent = lines.slice(0, 100).join("\n")
+      
+      console.log("[v0] Calling Claude for file:", file.name)
+      
+      const response = await anthropic.messages.create({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 8192,
+        system: `Use the scm-file-processor skill to process this Excel data and extract order information.
+Return JSON only with structure: { "rows": [...], "supplier": "string" }
+Each row: { whiPo, supplierInvoice, supplier, customer, containerNo, containerType, blNo, vessel, sku, description, qty, unitPrice, amount, etd, eta }`,
+        messages: [
+          {
+            role: "user",
+            content: `Process this file: ${file.name}\n\n${truncatedContent}`,
+          },
+        ],
+      })
 
-You have two skills:
-1. scm-file-processor: Process PO/Invoice files and extract structured data
-2. scm-master-generator: Generate a master table with 15 columns
-
-The 15 columns for the master table are:
-1. WHI PO - WHI internal PO number
-2. Supplier Invoice - Invoice number from supplier
-3. Supplier - Supplier name (HX, AMC, TJJSH, etc.)
-4. Customer - Customer name
-5. Container No. - Container number
-6. Container Type - 20GP, 40GP, or 40HQ only
-7. BL No. - Bill of Lading number
-8. Vessel - Vessel name
-9. SKU - Product SKU with full suffix
-10. Description - Product description
-11. Qty - Quantity in pieces
-12. Unit Price - Price per piece in USD
-13. Amount - Total amount (Qty * Unit Price)
-14. ETD - Estimated Time of Departure (YYYY-MM-DD)
-15. ETA - Estimated Time of Arrival (YYYY-MM-DD, or ETD + 30 days)
-
-Rules:
-- Each unique (Invoice, Container, SKU) combination = one row
-- Standardize container types to: 20GP, 40GP, or 40HQ only
-- Only include rows where Qty > 0
-- Format all dates as YYYY-MM-DD
-- Preserve full SKU suffixes (like GT)
-- Use $/PCS for unit price, NOT $/MT
-
-Return the result as JSON with this structure:
-{
-  "rows": [
-    {
-      "whiPo": string,
-      "supplierInvoice": string,
-      "supplier": string,
-      "customer": string,
-      "containerNo": string,
-      "containerType": string,
-      "blNo": string,
-      "vessel": string,
-      "sku": string,
-      "description": string,
-      "qty": number,
-      "unitPrice": number,
-      "amount": number,
-      "etd": string,
-      "eta": string
-    }
-  ],
-  "filesProcessed": string[],
-  "suppliers": string[]
-}`,
-      messages: [
-        {
-          role: "user",
-          content: `Process all these files and generate the master table data:
-
-${filesText}
-
-Extract all line items and return the complete master table as JSON.`,
-        },
-      ],
-    })
-
-    // Extract text response
-    console.log("[v0] Claude response received")
-    const textContent = response.content.find(c => c.type === "text")
-    if (!textContent || textContent.type !== "text") {
-      throw new Error("No response from Claude")
-    }
-    console.log("[v0] Claude response length:", textContent.text.length)
-
-    // Parse JSON from response
-    let result: {
-      rows: Array<{
-        whiPo: string
-        supplierInvoice: string
-        supplier: string
-        customer: string
-        containerNo: string
-        containerType: string
-        blNo: string
-        vessel: string
-        sku: string
-        description: string
-        qty: number
-        unitPrice: number
-        amount: number
-        etd: string
-        eta: string
-      }>
-      filesProcessed: string[]
-      suppliers: string[]
-    }
-
-    try {
-      const jsonMatch = textContent.text.match(/```json\n?([\s\S]*?)\n?```/) ||
-                       textContent.text.match(/\{[\s\S]*\}/)
-      if (jsonMatch) {
-        const jsonStr = jsonMatch[1] || jsonMatch[0]
-        result = JSON.parse(jsonStr)
-      } else {
-        throw new Error("No JSON found in response")
+      const textContent = response.content.find(c => c.type === "text")
+      if (textContent && textContent.type === "text") {
+        try {
+          const jsonMatch = textContent.text.match(/```json\n?([\s\S]*?)\n?```/) ||
+                           textContent.text.match(/\{[\s\S]*\}/)
+          if (jsonMatch) {
+            const jsonStr = jsonMatch[1] || jsonMatch[0]
+            const parsed = JSON.parse(jsonStr)
+            if (parsed.rows) {
+              allRows.push(...parsed.rows)
+            }
+            if (parsed.supplier) {
+              suppliers.add(parsed.supplier)
+            }
+            processedFiles.push(file.name)
+          }
+        } catch {
+          console.error("[v0] Failed to parse response for:", file.name)
+        }
       }
-    } catch (parseError) {
-      console.error("[v0] JSON parse error:", parseError)
-      console.error("[v0] Raw response:", textContent.text.substring(0, 500))
-      throw new Error("Failed to parse Claude response")
+    }
+
+    const result = {
+      rows: allRows,
+      filesProcessed: processedFiles,
+      suppliers: Array.from(suppliers),
     }
 
     const finalResult = {
