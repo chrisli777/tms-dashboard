@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server"
-import { generateText, Output } from "ai"
+import Anthropic from "@anthropic-ai/sdk"
 import { z } from "zod"
 import { getValidAccessToken } from "@/lib/microsoft-auth"
 import * as XLSX from "xlsx"
+
+// Initialize Anthropic client
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+})
 
 // 15-Column Order Management Schema - matches SKILL.md output format
 const lineItemSchema = z.object({
@@ -333,18 +338,27 @@ export async function POST(request: Request) {
 
     // Get raw buffer for Excel parsing
     const rawBuffer = Buffer.from(fileContent.data, "base64")
-    
-    // Build message content based on file type
-    let messageContent: Parameters<typeof generateText>[0]["messages"][0]["content"]
+
+    // Check file type is supported
+    if (!isExcel && !isPdf) {
+      return NextResponse.json(
+        { error: `Unsupported file type: ${fileContent.mimeType}` },
+        { status: 400 }
+      )
+    }
+
+    // Build Claude message content
+    const claudeContent: Anthropic.MessageParam["content"] = []
     
     if (isExcel) {
       // Parse Excel to text first
-      const excelText = parseExcelToText(rawBuffer.buffer.slice(rawBuffer.byteOffset, rawBuffer.byteOffset + rawBuffer.byteLength), fileContent.filename)
-      
-      messageContent = [
-        {
-          type: "text" as const,
-          text: `Parse this Excel file data and extract the Order Management table.
+      const excelText = parseExcelToText(
+        rawBuffer.buffer.slice(rawBuffer.byteOffset, rawBuffer.byteOffset + rawBuffer.byteLength), 
+        fileContent.filename
+      )
+      claudeContent.push({
+        type: "text",
+        text: `Parse this Excel file data and extract the Order Management table.
 
 File: ${fileContent.filename}
 Folder: ${folderPath || "unknown"}
@@ -354,75 +368,72 @@ ${customerHint ? `Detected Customer: ${customerHint}` : ""}
 Excel Content:
 ${excelText}
 
-Extract ALL line items into the 15-column Order Management format.
-- Each unique (Invoice, Container, SKU) combination should be a separate row
-- Preserve full SKU suffixes (like GT)
-- Preserve full invoice prefixes (like Terex2025-)
-- Use $/PCS for unit price, NOT $/MT
-- Standardize container types to: 20GP, 40GP, or 40HQ only
-- Only include rows where Qty > 0
-- Format all dates as YYYY-MM-DD
-- Calculate ETA as ETD + 30 days if not available
-
-Return the structured Order Management table data.`,
-        },
-      ]
+Extract ALL line items into the 15-column Order Management format as JSON.
+Return a JSON object with the structure defined in the system prompt.`,
+      })
     } else if (isPdf) {
-      // Send PDF directly to Claude (it supports PDF)
-      messageContent = [
-        {
-          type: "text" as const,
-          text: `Parse this PDF file and extract the Order Management table data.
+      claudeContent.push({
+        type: "text",
+        text: `Parse this PDF file and extract the Order Management table data.
 
 File: ${fileContent.filename}
 Folder: ${folderPath || "unknown"}
 ${supplierHint ? `Detected Supplier: ${supplierHint}` : ""}
 ${customerHint ? `Detected Customer: ${customerHint}` : ""}
 
-Extract ALL line items into the 15-column Order Management format.
-- Each unique (Invoice, Container, SKU) combination should be a separate row
-- Preserve full SKU suffixes (like GT)
-- Preserve full invoice prefixes (like Terex2025-)
-- Use $/PCS for unit price, NOT $/MT
-- Standardize container types to: 20GP, 40GP, or 40HQ only
-- Only include rows where Qty > 0
-- Format all dates as YYYY-MM-DD
-- Calculate ETA as ETD + 30 days if not available
-
-Return the structured Order Management table data.`,
-        },
-        {
-          type: "file" as const,
+Extract ALL line items into the 15-column Order Management format as JSON.
+Return a JSON object with the structure defined in the system prompt.`,
+      })
+      claudeContent.push({
+        type: "document",
+        source: {
+          type: "base64",
+          media_type: "application/pdf",
           data: fileContent.data,
-          mimeType: "application/pdf",
-          filename: fileContent.filename,
         },
-      ]
-    } else {
-      return NextResponse.json(
-        { error: `Unsupported file type: ${fileContent.mimeType}` },
-        { status: 400 }
-      )
+      })
     }
 
-    // Use Claude with SCM File Processor skill
-    const { output } = await generateText({
-      model: "anthropic/claude-sonnet-4-20250514",
+    // Call Claude API with scm-file-processor skill
+    const response = await anthropic.messages.create({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 8192,
       system: SCM_FILE_PROCESSOR_SKILL,
-      output: Output.object({
-        schema: parsedOrderManagementSchema,
-      }),
       messages: [
         {
           role: "user",
-          content: messageContent,
+          content: claudeContent,
         },
       ],
     })
 
+    // Extract text response
+    const textContent = response.content.find(c => c.type === "text")
+    if (!textContent || textContent.type !== "text") {
+      throw new Error("No text response from Claude")
+    }
+
+    // Parse JSON from response
+    let parsedData: ParsedOrderManagement
+    try {
+      // Try to extract JSON from the response
+      const jsonMatch = textContent.text.match(/```json\n?([\s\S]*?)\n?```/) || 
+                       textContent.text.match(/\{[\s\S]*\}/)
+      if (jsonMatch) {
+        const jsonStr = jsonMatch[1] || jsonMatch[0]
+        parsedData = JSON.parse(jsonStr)
+      } else {
+        throw new Error("No JSON found in response")
+      }
+    } catch (parseError) {
+      console.error("[v0] JSON parse error:", parseError)
+      console.error("[v0] Raw response:", textContent.text)
+      throw new Error("Failed to parse Claude response as JSON")
+    }
+
     return NextResponse.json({
       success: true,
-      data: output,
+      data: parsedData,
       filename: fileContent.filename,
     })
   } catch (error) {
