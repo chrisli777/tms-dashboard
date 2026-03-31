@@ -8,13 +8,14 @@ const CLIENT_ID = "533c767d-c6f2-4eff-8086-c4afcb6447e8"
 const CLIENT_SECRET = "gzh8Q~GMus~t5iJdO1UVxvPsJOXThl66yE0lscv~"
 
 // Scopes needed for OneDrive access
+// Using minimal scopes that don't require admin consent
 const SCOPES = [
   "openid",
-  "profile",
+  "profile", 
   "email",
   "offline_access",
-  "Files.Read.All",
-  "Sites.Read.All",
+  "Files.Read",           // Read user's files (no admin consent needed)
+  "Files.Read.Selected",  // Read selected files (no admin consent needed)
 ].join(" ")
 
 export function getAuthorizationUrl(redirectUri: string, state: string, forceConsent: boolean = false): string {
