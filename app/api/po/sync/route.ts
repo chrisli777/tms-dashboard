@@ -340,6 +340,39 @@ async function downloadFile(accessToken: string, driveId: string, fileId: string
   return await contentResponse.arrayBuffer()
 }
 
+// Pre-filter files by name pattern before sending to Claude
+function isPotentialPOFile(filename: string): boolean {
+  const name = filename.toLowerCase()
+  
+  // HX → Genie: contains "terex" or has invoice-like patterns
+  if (name.includes("terex")) return true
+  
+  // HX → Clark: contains "clark"
+  if (name.includes("clark")) return true
+  
+  // TJJSH: contains "tjlt"
+  if (name.includes("tjlt")) return true
+  
+  // AMC: PDF files with invoice patterns
+  if (name.endsWith(".pdf") && (name.includes("invoice") || name.includes("amc") || /\d{7,8}/.test(name))) return true
+  
+  // Pipeline files
+  if (name.includes("pipeline")) return true
+  
+  // Files with "invoice" in name
+  if (name.includes("invoice")) return true
+  
+  // Skip obvious non-PO files
+  const skipPatterns = [
+    "receipt", "put-away", "timeliness", "report", "template", 
+    "arrival_notice", "broker", "packing list", "bl.pdf"
+  ]
+  if (skipPatterns.some(p => name.includes(p))) return false
+  
+  // Default: skip unknown files to save API calls
+  return false
+}
+
 // Parse Excel to text
 function parseExcelToText(buffer: ArrayBuffer, filename: string): string {
   const workbook = XLSX.read(buffer, { type: "array" })
@@ -411,12 +444,27 @@ export async function POST() {
           filesFound: files.map(f => f.name)
         })
 
-        // Download all Excel/PDF files (let skill handle filtering)
+        // Pre-filter files by name pattern, then download
+        const potentialPOFiles = files.filter(f => isPotentialPOFile(f.name))
+        const skippedCount = files.length - potentialPOFiles.length
+        
+        send("progress", { 
+          step: "download", 
+          message: `Found ${potentialPOFiles.length} potential PO files (skipped ${skippedCount} unrelated)`, 
+          percent: 25
+        })
+
         const fileContents: Array<{ name: string; content: string }> = []
         let downloadedCount = 0
 
-        for (const file of files) {
+        for (const file of potentialPOFiles) {
           try {
+            send("progress", { 
+              step: "download", 
+              message: `Downloading: ${file.name}`, 
+              percent: 25 + Math.round((downloadedCount / potentialPOFiles.length) * 25)
+            })
+            
             const buffer = await downloadFile(accessToken, file.driveId!, file.id)
 
             if (file.name.toLowerCase().endsWith(".xlsx") || file.name.toLowerCase().endsWith(".xls")) {
@@ -428,11 +476,6 @@ export async function POST() {
             }
             
             downloadedCount++
-            send("progress", { 
-              step: "download", 
-              message: `Downloaded ${downloadedCount}/${files.length}: ${file.name}`, 
-              percent: 20 + Math.round((downloadedCount / files.length) * 30)
-            })
           } catch (err) {
             console.error(`[v0] Failed to download ${file.name}:`, err)
             downloadedCount++
