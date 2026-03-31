@@ -516,32 +516,50 @@ export async function POST() {
 
             const textContent = response.content.find(c => c.type === "text")
             if (textContent && textContent.type === "text") {
+              console.log("[v0] Claude response for", file.name, ":", textContent.text.substring(0, 500))
+              
               const jsonMatch = textContent.text.match(/```json\n?([\s\S]*?)\n?```/) ||
                                textContent.text.match(/\{[\s\S]*\}/)
+              
+              console.log("[v0] JSON match:", jsonMatch ? "found" : "not found")
+              
               if (jsonMatch) {
                 const jsonStr = jsonMatch[1] || jsonMatch[0]
-                const parsed = JSON.parse(jsonStr)
+                console.log("[v0] Parsing JSON:", jsonStr.substring(0, 200))
                 
-                // Check if file was skipped
-                if (parsed.skip) {
-                  send("progress", { 
-                    step: "process", 
-                    message: `Skipped: ${file.name} (${parsed.reason})`, 
-                    percent: 55 + Math.round((processedCount / Math.max(excelFiles.length, 1)) * 40)
-                  })
-                } else if (parsed.rows && parsed.rows.length > 0) {
-                  allRows.push(...parsed.rows)
-                  if (parsed.supplier) {
-                    suppliers.add(parsed.supplier)
+                try {
+                  const parsed = JSON.parse(jsonStr)
+                  console.log("[v0] Parsed result - skip:", parsed.skip, "rows:", parsed.rows?.length)
+                  
+                  // Check if file was skipped
+                  if (parsed.skip) {
+                    send("progress", { 
+                      step: "process", 
+                      message: `Skipped: ${file.name} (${parsed.reason})`, 
+                      percent: 55 + Math.round((processedCount / Math.max(excelFiles.length, 1)) * 40)
+                    })
+                  } else if (parsed.rows && parsed.rows.length > 0) {
+                    allRows.push(...parsed.rows)
+                    if (parsed.supplier) {
+                      suppliers.add(parsed.supplier)
+                    }
+                    processedFiles.push(file.name)
+                    send("progress", { 
+                      step: "process", 
+                      message: `Extracted ${parsed.rows.length} rows from: ${file.name}`, 
+                      percent: 55 + Math.round((processedCount / Math.max(excelFiles.length, 1)) * 40)
+                    })
+                  } else {
+                    console.log("[v0] No rows in response for", file.name)
                   }
-                  processedFiles.push(file.name)
-                  send("progress", { 
-                    step: "process", 
-                    message: `Extracted ${parsed.rows.length} rows from: ${file.name}`, 
-                    percent: 55 + Math.round((processedCount / Math.max(excelFiles.length, 1)) * 40)
-                  })
+                } catch (parseErr) {
+                  console.error("[v0] JSON parse error:", parseErr, "for string:", jsonStr.substring(0, 100))
                 }
+              } else {
+                console.log("[v0] No JSON found in response for", file.name)
               }
+            } else {
+              console.log("[v0] No text content in response for", file.name)
             }
           } catch (err) {
             console.error("[v0] Claude error for:", file.name, err)
