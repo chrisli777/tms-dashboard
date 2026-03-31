@@ -200,6 +200,7 @@ export async function POST() {
           totalNewRows: 0,
           suppliers: [],
         },
+        debug: "No files found in sharedWithMe. Make sure files are shared with you.",
       })
     }
 
@@ -358,6 +359,7 @@ Extract all line items and return the complete master table as JSON.`,
         totalNewRows: result.rows?.length || 0,
         suppliers: result.suppliers || [],
       },
+      debug: `Found ${files.length} files: ${files.map(f => f.name).join(", ")}`,
     }
     
     console.log("[v0] Sync complete - files:", finalResult.summary.totalFiles, "rows:", finalResult.summary.totalNewRows)

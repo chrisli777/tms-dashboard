@@ -77,6 +77,7 @@ export function SyncPODialog() {
   const [progressMessage, setProgressMessage] = useState("")
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [debugInfo, setDebugInfo] = useState<string>("")
 
   // Check auth when dialog opens
   const checkAuth = async () => {
@@ -109,22 +110,23 @@ export function SyncPODialog() {
     console.log("[v0] handleSync called")
     setStep("syncing")
     setError(null)
+    setDebugInfo("")
     setProgress(10)
     setProgressMessage("Connecting to OneDrive...")
 
     try {
-      console.log("[v0] Calling /api/po/sync...")
+      setDebugInfo("Calling /api/po/sync...")
       // Call Claude to process all files and generate master table
       const response = await fetch("/api/po/sync", {
         method: "POST",
       })
 
-      console.log("[v0] Response status:", response.status)
+      setDebugInfo(`Response status: ${response.status}`)
       setProgress(50)
       setProgressMessage("Processing files with Claude...")
 
       const data = await response.json()
-      console.log("[v0] Response data:", JSON.stringify(data).substring(0, 500))
+      setDebugInfo(`Response: ${JSON.stringify(data).substring(0, 1000)}`)
 
       if (!response.ok) {
         if (data.error === "not_authenticated") {
@@ -141,6 +143,7 @@ export function SyncPODialog() {
     } catch (err) {
       console.log("[v0] Sync error:", err)
       setError(err instanceof Error ? err.message : "Sync failed")
+      setDebugInfo(`Error: ${err}`)
       setStep("idle")
     }
   }
@@ -292,6 +295,13 @@ export function SyncPODialog() {
         {/* Preview State */}
         {step === "preview" && syncResult && (
           <div className="flex flex-col gap-4">
+            {/* Debug Info */}
+            {debugInfo && (
+              <div className="rounded bg-muted p-2 text-xs font-mono break-all max-h-32 overflow-auto">
+                {debugInfo}
+              </div>
+            )}
+            
             {/* Summary */}
             <div className="flex items-center gap-4 rounded-lg bg-muted/50 p-4">
               <div className="flex items-center gap-2">
