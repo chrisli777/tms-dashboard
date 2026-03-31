@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { generateText, Output } from "ai"
 import { z } from "zod"
 import { getValidAccessToken } from "@/lib/microsoft-auth"
+import * as XLSX from "xlsx"
 
 // 15-Column Order Management Schema - matches SKILL.md output format
 const lineItemSchema = z.object({
@@ -109,7 +110,7 @@ Filename: Terex2025-{batch} 2小 cvas-iot ETD{M.D}.xlsx
   - ColA(1) = Part# → SKU ✅
   - ColD(4) = P.O NO. → WHI PO
   - ColE(5) = Q'TY → Qty ⚠️ Filter Qty>0
-  - ColH(8) = $/PCS → Unit Price ✅ (NOT ColG $/MT!)
+  - ColH(8) = $/PCS → Unit Price ��� (NOT ColG $/MT!)
   - ColI(9) = AMOUNT → Amount
 
 **Details of containers sheet:**
@@ -194,6 +195,38 @@ Filename: TJLT{YYYYMMDD}XX.xlsx
 6. Only output rows where Qty > 0 (skip template blank rows)
 7. Cross-check: Amount should equal Qty × Unit Price (flag if different)
 `
+
+// Parse Excel file to text/JSON for Claude
+function parseExcelToText(buffer: ArrayBuffer, filename: string): string {
+  const workbook = XLSX.read(buffer, { type: "array" })
+  const result: string[] = []
+  
+  result.push(`=== Excel File: ${filename} ===`)
+  result.push(`Sheets: ${workbook.SheetNames.join(", ")}`)
+  result.push("")
+  
+  for (const sheetName of workbook.SheetNames) {
+    const sheet = workbook.Sheets[sheetName]
+    const data = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" }) as unknown[][]
+    
+    result.push(`\n=== Sheet: ${sheetName} ===`)
+    
+    // Output first 100 rows max per sheet
+    const maxRows = Math.min(data.length, 100)
+    for (let i = 0; i < maxRows; i++) {
+      const row = data[i]
+      if (Array.isArray(row) && row.some(cell => cell !== "")) {
+        result.push(`Row ${i + 1}: ${row.map(cell => String(cell)).join(" | ")}`)
+      }
+    }
+    
+    if (data.length > 100) {
+      result.push(`... (${data.length - 100} more rows)`)
+    }
+  }
+  
+  return result.join("\n")
+}
 
 // Get file content from OneDrive using delegated access token
 async function getFileContent(
@@ -298,20 +331,48 @@ export async function POST(request: Request) {
       customerHint = "Genie"
     }
 
-    // Use Claude with SCM File Processor skill
-    const { output } = await generateText({
-      model: "anthropic/claude-sonnet-4-20250514",
-      system: SCM_FILE_PROCESSOR_SKILL,
-      output: Output.object({
-        schema: parsedOrderManagementSchema,
-      }),
-      messages: [
+    // Get raw buffer for Excel parsing
+    const rawBuffer = Buffer.from(fileContent.data, "base64")
+    
+    // Build message content based on file type
+    let messageContent: Parameters<typeof generateText>[0]["messages"][0]["content"]
+    
+    if (isExcel) {
+      // Parse Excel to text first
+      const excelText = parseExcelToText(rawBuffer.buffer.slice(rawBuffer.byteOffset, rawBuffer.byteOffset + rawBuffer.byteLength), fileContent.filename)
+      
+      messageContent = [
         {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: `Parse this ${isPdf ? "PDF" : "Excel"} file and extract the Order Management table data.
+          type: "text" as const,
+          text: `Parse this Excel file data and extract the Order Management table.
+
+File: ${fileContent.filename}
+Folder: ${folderPath || "unknown"}
+${supplierHint ? `Detected Supplier: ${supplierHint}` : ""}
+${customerHint ? `Detected Customer: ${customerHint}` : ""}
+
+Excel Content:
+${excelText}
+
+Extract ALL line items into the 15-column Order Management format.
+- Each unique (Invoice, Container, SKU) combination should be a separate row
+- Preserve full SKU suffixes (like GT)
+- Preserve full invoice prefixes (like Terex2025-)
+- Use $/PCS for unit price, NOT $/MT
+- Standardize container types to: 20GP, 40GP, or 40HQ only
+- Only include rows where Qty > 0
+- Format all dates as YYYY-MM-DD
+- Calculate ETA as ETD + 30 days if not available
+
+Return the structured Order Management table data.`,
+        },
+      ]
+    } else if (isPdf) {
+      // Send PDF directly to Claude (it supports PDF)
+      messageContent = [
+        {
+          type: "text" as const,
+          text: `Parse this PDF file and extract the Order Management table data.
 
 File: ${fileContent.filename}
 Folder: ${folderPath || "unknown"}
@@ -329,16 +390,32 @@ Extract ALL line items into the 15-column Order Management format.
 - Calculate ETA as ETD + 30 days if not available
 
 Return the structured Order Management table data.`,
-            },
-            {
-              type: "file",
-              data: fileContent.data,
-              mediaType: isPdf ? "application/pdf" : 
-                        isExcel ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" :
-                        fileContent.mimeType,
-              filename: fileContent.filename,
-            },
-          ],
+        },
+        {
+          type: "file" as const,
+          data: fileContent.data,
+          mimeType: "application/pdf",
+          filename: fileContent.filename,
+        },
+      ]
+    } else {
+      return NextResponse.json(
+        { error: `Unsupported file type: ${fileContent.mimeType}` },
+        { status: 400 }
+      )
+    }
+
+    // Use Claude with SCM File Processor skill
+    const { output } = await generateText({
+      model: "anthropic/claude-sonnet-4-20250514",
+      system: SCM_FILE_PROCESSOR_SKILL,
+      output: Output.object({
+        schema: parsedOrderManagementSchema,
+      }),
+      messages: [
+        {
+          role: "user",
+          content: messageContent,
         },
       ],
     })
