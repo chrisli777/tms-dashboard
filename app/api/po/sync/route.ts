@@ -211,12 +211,58 @@ async function downloadFile(accessToken: string, driveId: string, fileId: string
   return await contentResponse.arrayBuffer()
 }
 
+// Detect supplier type from filename
+function detectSupplierType(filename: string): { supplier: string; customer: string } | null {
+  const name = filename.toLowerCase()
+  
+  // HX → Genie: files like "Terex2025-1201A 2小 cvas-iot ETD12.6.xlsx"
+  if ((name.includes("terex") || name.includes("genie")) && name.endsWith(".xlsx")) {
+    return { supplier: "HX", customer: "Genie" }
+  }
+  
+  // HX → Clark: files like "CLARK20251201.xls"
+  if (name.includes("clark") && name.endsWith(".xls")) {
+    return { supplier: "HX", customer: "Clark" }
+  }
+  
+  // AMC: PDF files in AMC folders, usually contain invoice numbers like "2512060"
+  if (name.endsWith(".pdf") && (name.includes("amc") || name.includes("invoice"))) {
+    return { supplier: "AMC", customer: "Genie" }
+  }
+  
+  // TJJSH: files like "TJLT20260201KZ.xlsx"
+  if (name.includes("tjlt") && name.endsWith(".xlsx")) {
+    return { supplier: "TJJSH", customer: "Deere" }
+  }
+  
+  // Also check for pipeline/shipment files by looking at sheet names
+  // These files typically have "invoice" and "details of containers" sheets
+  return null // Unknown file type - will be checked by sheet content
+}
+
+// Check if Excel file has required sheets for HX format
+function isHXFormatExcel(buffer: ArrayBuffer): boolean {
+  try {
+    const workbook = XLSX.read(buffer, { type: "array" })
+    const sheetNames = workbook.SheetNames.map(s => s.toLowerCase().trim())
+    
+    // HX files have "invoice" and "details of containers" sheets
+    const hasInvoice = sheetNames.some(s => s.includes("invoice"))
+    const hasDetails = sheetNames.some(s => s.includes("details") && s.includes("container"))
+    
+    return hasInvoice && hasDetails
+  } catch {
+    return false
+  }
+}
+
 // Parse Excel to text
 function parseExcelToText(buffer: ArrayBuffer, filename: string): string {
   const workbook = XLSX.read(buffer, { type: "array" })
   const result: string[] = []
 
   result.push(`=== File: ${filename} ===`)
+  result.push(`Sheets: ${workbook.SheetNames.join(", ")}`)
 
   for (const sheetName of workbook.SheetNames) {
     const sheet = workbook.Sheets[sheetName]
@@ -281,32 +327,78 @@ export async function POST() {
           filesFound: files.map(f => f.name)
         })
 
-        // Download and parse all files
-        const fileContents: Array<{ name: string; content: string }> = []
+        // Download and filter relevant files
+        const fileContents: Array<{ name: string; content: string; supplier: string; customer: string }> = []
         let downloadedCount = 0
+        let skippedCount = 0
 
         for (const file of files) {
           try {
+            // First check by filename
+            let supplierInfo = detectSupplierType(file.name)
+            
             const buffer = await downloadFile(accessToken, file.driveId!, file.id)
 
             if (file.name.toLowerCase().endsWith(".xlsx") || file.name.toLowerCase().endsWith(".xls")) {
-              const text = parseExcelToText(buffer, file.name)
-              fileContents.push({ name: file.name, content: text })
-            } else if (file.name.toLowerCase().endsWith(".pdf")) {
+              // If not detected by filename, check by sheet structure
+              if (!supplierInfo && isHXFormatExcel(buffer)) {
+                supplierInfo = { supplier: "HX", customer: "Unknown" }
+              }
+              
+              if (supplierInfo) {
+                const text = parseExcelToText(buffer, file.name)
+                fileContents.push({ 
+                  name: file.name, 
+                  content: text, 
+                  supplier: supplierInfo.supplier, 
+                  customer: supplierInfo.customer 
+                })
+                send("progress", { 
+                  step: "download", 
+                  message: `Found ${supplierInfo.supplier} file: ${file.name}`, 
+                  percent: 20 + Math.round((downloadedCount / files.length) * 30)
+                })
+              } else {
+                skippedCount++
+                send("progress", { 
+                  step: "download", 
+                  message: `Skipped (not a PO file): ${file.name}`, 
+                  percent: 20 + Math.round((downloadedCount / files.length) * 30)
+                })
+              }
+            } else if (file.name.toLowerCase().endsWith(".pdf") && supplierInfo) {
               const base64 = Buffer.from(buffer).toString("base64")
-              fileContents.push({ name: file.name, content: `[PDF:${base64}]` })
+              fileContents.push({ 
+                name: file.name, 
+                content: `[PDF:${base64}]`, 
+                supplier: supplierInfo.supplier, 
+                customer: supplierInfo.customer 
+              })
+            } else {
+              skippedCount++
             }
             
             downloadedCount++
-            const percent = 20 + Math.round((downloadedCount / files.length) * 30)
-            send("progress", { 
-              step: "download", 
-              message: `Downloaded ${downloadedCount}/${files.length}: ${file.name}`, 
-              percent 
-            })
           } catch (err) {
             console.error(`[v0] Failed to process file ${file.name}:`, err)
           }
+        }
+        
+        send("progress", { 
+          step: "download", 
+          message: `Found ${fileContents.length} PO files (skipped ${skippedCount} unrelated files)`, 
+          percent: 50
+        })
+
+        if (fileContents.length === 0) {
+          send("complete", {
+            newRows: [],
+            filesProcessed: [],
+            summary: { totalFiles: 0, totalNewRows: 0, suppliers: [] },
+            debug: `No PO files found. Scanned ${files.length} files but none matched HX/AMC/TJJSH formats.`,
+          })
+          controller.close()
+          return
         }
 
         send("progress", { step: "process", message: "Processing files with Claude...", percent: 55 })
@@ -320,11 +412,11 @@ export async function POST() {
 
         for (const file of excelFiles) {
           const lines = file.content.split("\n")
-          const truncatedContent = lines.slice(0, 100).join("\n")
+          const truncatedContent = lines.slice(0, 150).join("\n")
           
           send("progress", { 
             step: "process", 
-            message: `Processing: ${file.name}`, 
+            message: `Processing ${file.supplier} file: ${file.name}`, 
             percent: 55 + Math.round((processedCount / Math.max(excelFiles.length, 1)) * 40)
           })
           
@@ -332,13 +424,32 @@ export async function POST() {
             const response = await anthropic.messages.create({
               model: "claude-sonnet-4-20250514",
               max_tokens: 8192,
-              system: `Use the scm-file-processor skill to process this Excel data and extract order information.
-Return JSON only with structure: { "rows": [...], "supplier": "string" }
-Each row: { whiPo, supplierInvoice, supplier, customer, containerNo, containerType, blNo, vessel, sku, description, qty, unitPrice, amount, etd, eta }`,
+              system: `You are an SCM file processor. Parse PO/Invoice Excel files into structured order data.
+
+FILE TYPE: ${file.supplier} → ${file.customer}
+
+RULES:
+- Extract data from "invoice" sheet for line items (SKU, qty, price, amount)
+- Extract container/BL info from "details of containers" sheet
+- Each unique (Invoice, Container, SKU) = one output row
+- Container types must be: 20GP, 40GP, or 40HQ only
+- Dates in YYYY-MM-DD format
+- Unit price is $/PCS (not $/MT)
+- Only include rows where qty > 0
+
+OUTPUT: Return ONLY valid JSON with structure:
+{
+  "rows": [
+    { "whiPo": "", "supplierInvoice": "", "supplier": "${file.supplier}", "customer": "${file.customer}", 
+      "containerNo": "", "containerType": "", "blNo": "", "vessel": "", 
+      "sku": "", "description": "", "qty": 0, "unitPrice": 0, "amount": 0, "etd": "", "eta": "" }
+  ],
+  "supplier": "${file.supplier}"
+}`,
               messages: [
                 {
                   role: "user",
-                  content: `Process this file: ${file.name}\n\n${truncatedContent}`,
+                  content: `Parse this ${file.supplier} file and extract order data:\n\n${truncatedContent}`,
                 },
               ],
             })
