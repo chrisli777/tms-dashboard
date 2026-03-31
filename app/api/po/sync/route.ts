@@ -450,6 +450,10 @@ export async function POST() {
         const potentialPOFiles = files.filter(f => isPotentialPOFile(f.name))
         const skippedCount = files.length - potentialPOFiles.length
         
+        console.log("[v0] Total files found:", files.length)
+        console.log("[v0] Potential PO files:", potentialPOFiles.length)
+        console.log("[v0] PO file names:", potentialPOFiles.map(f => f.name))
+        
         send("progress", { 
           step: "download", 
           message: `Found ${potentialPOFiles.length} potential PO files (skipped ${skippedCount} unrelated)`, 
@@ -533,9 +537,11 @@ ${fullContent}`,
               ],
             })
 
+            console.log("[v0] Claude raw response:", JSON.stringify(response.content).substring(0, 300))
+            
             const textContent = response.content.find(c => c.type === "text")
             if (textContent && textContent.type === "text") {
-              console.log("[v0] Claude response for", file.name, ":", textContent.text.substring(0, 500))
+              console.log("[v0] Claude response for", file.name, ":", textContent.text.substring(0, 800))
               
               const jsonMatch = textContent.text.match(/```json\n?([\s\S]*?)\n?```/) ||
                                textContent.text.match(/\{[\s\S]*\}/)
