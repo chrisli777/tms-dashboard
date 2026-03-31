@@ -27,11 +27,14 @@ export async function GET(request: Request) {
     path: "/",
   })
 
-  // Get the correct public URL using headers (handles serverless/proxy environments)
-  const headersList = await headers()
-  const host = headersList.get("x-forwarded-host") || headersList.get("host") || "localhost:3000"
-  const protocol = headersList.get("x-forwarded-proto") || "https"
-  const baseUrl = `${protocol}://${host}`
+  // Use NEXT_PUBLIC_APP_URL env var (for production) or detect from headers
+  let baseUrl = process.env.NEXT_PUBLIC_APP_URL
+  if (!baseUrl) {
+    const headersList = await headers()
+    const host = headersList.get("x-forwarded-host") || headersList.get("host") || "localhost:3000"
+    const protocol = headersList.get("x-forwarded-proto") || "https"
+    baseUrl = `${protocol}://${host}`
+  }
   const redirectUri = `${baseUrl}/api/auth/microsoft/callback`
   
   console.log("[v0] OAuth redirect URI:", redirectUri)

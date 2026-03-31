@@ -2,8 +2,11 @@ import { NextResponse } from "next/server"
 import { exchangeCodeForTokens, setAuthCookies } from "@/lib/microsoft-auth"
 import { cookies, headers } from "next/headers"
 
-// Helper to get correct base URL in serverless environment
+// Helper to get correct base URL - uses env var or detects from headers
 async function getBaseUrl(): Promise<string> {
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    return process.env.NEXT_PUBLIC_APP_URL
+  }
   const headersList = await headers()
   const host = headersList.get("x-forwarded-host") || headersList.get("host") || "localhost:3000"
   const protocol = headersList.get("x-forwarded-proto") || "https"
