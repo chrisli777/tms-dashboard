@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server"
-import { generateText, Output } from "ai"
+import Anthropic from "@anthropic-ai/sdk"
 import { z } from "zod"
 import { getValidAccessToken } from "@/lib/microsoft-auth"
+import * as XLSX from "xlsx"
+
+// Initialize Anthropic client
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+})
 
 // 15-Column Order Management Schema - matches SKILL.md output format
 const lineItemSchema = z.object({
@@ -109,7 +115,7 @@ Filename: Terex2025-{batch} 2小 cvas-iot ETD{M.D}.xlsx
   - ColA(1) = Part# → SKU ✅
   - ColD(4) = P.O NO. → WHI PO
   - ColE(5) = Q'TY → Qty ⚠️ Filter Qty>0
-  - ColH(8) = $/PCS → Unit Price ✅ (NOT ColG $/MT!)
+  - ColH(8) = $/PCS → Unit Price ��� (NOT ColG $/MT!)
   - ColI(9) = AMOUNT → Amount
 
 **Details of containers sheet:**
@@ -194,6 +200,38 @@ Filename: TJLT{YYYYMMDD}XX.xlsx
 6. Only output rows where Qty > 0 (skip template blank rows)
 7. Cross-check: Amount should equal Qty × Unit Price (flag if different)
 `
+
+// Parse Excel file to text/JSON for Claude
+function parseExcelToText(buffer: ArrayBuffer, filename: string): string {
+  const workbook = XLSX.read(buffer, { type: "array" })
+  const result: string[] = []
+  
+  result.push(`=== Excel File: ${filename} ===`)
+  result.push(`Sheets: ${workbook.SheetNames.join(", ")}`)
+  result.push("")
+  
+  for (const sheetName of workbook.SheetNames) {
+    const sheet = workbook.Sheets[sheetName]
+    const data = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" }) as unknown[][]
+    
+    result.push(`\n=== Sheet: ${sheetName} ===`)
+    
+    // Output first 100 rows max per sheet
+    const maxRows = Math.min(data.length, 100)
+    for (let i = 0; i < maxRows; i++) {
+      const row = data[i]
+      if (Array.isArray(row) && row.some(cell => cell !== "")) {
+        result.push(`Row ${i + 1}: ${row.map(cell => String(cell)).join(" | ")}`)
+      }
+    }
+    
+    if (data.length > 100) {
+      result.push(`... (${data.length - 100} more rows)`)
+    }
+  }
+  
+  return result.join("\n")
+}
 
 // Get file content from OneDrive using delegated access token
 async function getFileContent(
@@ -298,54 +336,104 @@ export async function POST(request: Request) {
       customerHint = "Genie"
     }
 
-    // Use Claude with SCM File Processor skill
-    const { output } = await generateText({
-      model: "anthropic/claude-sonnet-4-20250514",
-      system: SCM_FILE_PROCESSOR_SKILL,
-      output: Output.object({
-        schema: parsedOrderManagementSchema,
-      }),
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: `Parse this ${isPdf ? "PDF" : "Excel"} file and extract the Order Management table data.
+    // Get raw buffer for Excel parsing
+    const rawBuffer = Buffer.from(fileContent.data, "base64")
+
+    // Check file type is supported
+    if (!isExcel && !isPdf) {
+      return NextResponse.json(
+        { error: `Unsupported file type: ${fileContent.mimeType}` },
+        { status: 400 }
+      )
+    }
+
+    // Build Claude message content
+    const claudeContent: Anthropic.MessageParam["content"] = []
+    
+    if (isExcel) {
+      // Parse Excel to text first
+      const excelText = parseExcelToText(
+        rawBuffer.buffer.slice(rawBuffer.byteOffset, rawBuffer.byteOffset + rawBuffer.byteLength), 
+        fileContent.filename
+      )
+      claudeContent.push({
+        type: "text",
+        text: `Parse this Excel file data and extract the Order Management table.
 
 File: ${fileContent.filename}
 Folder: ${folderPath || "unknown"}
 ${supplierHint ? `Detected Supplier: ${supplierHint}` : ""}
 ${customerHint ? `Detected Customer: ${customerHint}` : ""}
 
-Extract ALL line items into the 15-column Order Management format.
-- Each unique (Invoice, Container, SKU) combination should be a separate row
-- Preserve full SKU suffixes (like GT)
-- Preserve full invoice prefixes (like Terex2025-)
-- Use $/PCS for unit price, NOT $/MT
-- Standardize container types to: 20GP, 40GP, or 40HQ only
-- Only include rows where Qty > 0
-- Format all dates as YYYY-MM-DD
-- Calculate ETA as ETD + 30 days if not available
+Excel Content:
+${excelText}
 
-Return the structured Order Management table data.`,
-            },
-            {
-              type: "file",
-              data: fileContent.data,
-              mediaType: isPdf ? "application/pdf" : 
-                        isExcel ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" :
-                        fileContent.mimeType,
-              filename: fileContent.filename,
-            },
-          ],
+Extract ALL line items into the 15-column Order Management format as JSON.
+Return a JSON object with the structure defined in the system prompt.`,
+      })
+    } else if (isPdf) {
+      claudeContent.push({
+        type: "text",
+        text: `Parse this PDF file and extract the Order Management table data.
+
+File: ${fileContent.filename}
+Folder: ${folderPath || "unknown"}
+${supplierHint ? `Detected Supplier: ${supplierHint}` : ""}
+${customerHint ? `Detected Customer: ${customerHint}` : ""}
+
+Extract ALL line items into the 15-column Order Management format as JSON.
+Return a JSON object with the structure defined in the system prompt.`,
+      })
+      claudeContent.push({
+        type: "document",
+        source: {
+          type: "base64",
+          media_type: "application/pdf",
+          data: fileContent.data,
+        },
+      })
+    }
+
+    // Call Claude API with scm-file-processor skill
+    const response = await anthropic.messages.create({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 8192,
+      system: SCM_FILE_PROCESSOR_SKILL,
+      messages: [
+        {
+          role: "user",
+          content: claudeContent,
         },
       ],
     })
 
+    // Extract text response
+    const textContent = response.content.find(c => c.type === "text")
+    if (!textContent || textContent.type !== "text") {
+      throw new Error("No text response from Claude")
+    }
+
+    // Parse JSON from response
+    let parsedData: ParsedOrderManagement
+    try {
+      // Try to extract JSON from the response
+      const jsonMatch = textContent.text.match(/```json\n?([\s\S]*?)\n?```/) || 
+                       textContent.text.match(/\{[\s\S]*\}/)
+      if (jsonMatch) {
+        const jsonStr = jsonMatch[1] || jsonMatch[0]
+        parsedData = JSON.parse(jsonStr)
+      } else {
+        throw new Error("No JSON found in response")
+      }
+    } catch (parseError) {
+      console.error("[v0] JSON parse error:", parseError)
+      console.error("[v0] Raw response:", textContent.text)
+      throw new Error("Failed to parse Claude response as JSON")
+    }
+
     return NextResponse.json({
       success: true,
-      data: output,
+      data: parsedData,
       filename: fileContent.filename,
     })
   } catch (error) {
