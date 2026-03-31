@@ -106,21 +106,25 @@ export function SyncPODialog() {
   }
 
   const handleSync = async () => {
+    console.log("[v0] handleSync called")
     setStep("syncing")
     setError(null)
     setProgress(10)
     setProgressMessage("Connecting to OneDrive...")
 
     try {
+      console.log("[v0] Calling /api/po/sync...")
       // Call Claude to process all files and generate master table
       const response = await fetch("/api/po/sync", {
         method: "POST",
       })
 
+      console.log("[v0] Response status:", response.status)
       setProgress(50)
       setProgressMessage("Processing files with Claude...")
 
       const data = await response.json()
+      console.log("[v0] Response data:", JSON.stringify(data).substring(0, 500))
 
       if (!response.ok) {
         if (data.error === "not_authenticated") {
@@ -135,6 +139,7 @@ export function SyncPODialog() {
       setSyncResult(data)
       setStep("preview")
     } catch (err) {
+      console.log("[v0] Sync error:", err)
       setError(err instanceof Error ? err.message : "Sync failed")
       setStep("idle")
     }
