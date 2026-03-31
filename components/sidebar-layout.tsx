@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation"
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
+import { OneDriveStatus } from "@/components/onedrive-status"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
 
@@ -59,6 +60,10 @@ export function SidebarLayout({
               {description && (
                 <span className="text-sm text-muted-foreground">{description}</span>
               )}
+            </div>
+            {/* OneDrive status in top right */}
+            <div className="ml-auto">
+              <OneDriveStatus />
             </div>
           </header>
         )}
