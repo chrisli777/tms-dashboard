@@ -217,6 +217,7 @@ function parseExcelToText(buffer: ArrayBuffer, filename: string): string {
   const result: string[] = []
 
   result.push(`=== File: ${filename} ===`)
+  result.push(`Sheets: ${workbook.SheetNames.join(", ")}`)
 
   for (const sheetName of workbook.SheetNames) {
     const sheet = workbook.Sheets[sheetName]
@@ -281,7 +282,7 @@ export async function POST() {
           filesFound: files.map(f => f.name)
         })
 
-        // Download and parse all files
+        // Download all Excel/PDF files (let skill handle filtering)
         const fileContents: Array<{ name: string; content: string }> = []
         let downloadedCount = 0
 
@@ -298,29 +299,41 @@ export async function POST() {
             }
             
             downloadedCount++
-            const percent = 20 + Math.round((downloadedCount / files.length) * 30)
             send("progress", { 
               step: "download", 
               message: `Downloaded ${downloadedCount}/${files.length}: ${file.name}`, 
-              percent 
+              percent: 20 + Math.round((downloadedCount / files.length) * 30)
             })
           } catch (err) {
-            console.error(`[v0] Failed to process file ${file.name}:`, err)
+            console.error(`[v0] Failed to download ${file.name}:`, err)
+            downloadedCount++
           }
         }
+        
+        if (fileContents.length === 0) {
+          send("complete", {
+            newRows: [],
+            filesProcessed: [],
+            summary: { totalFiles: 0, totalNewRows: 0, suppliers: [] },
+            debug: "No files downloaded from OneDrive.",
+          })
+          controller.close()
+          return
+        }
 
-        send("progress", { step: "process", message: "Processing files with Claude...", percent: 55 })
+        send("progress", { step: "process", message: "Processing files with Claude scm-file-processor skill...", percent: 55 })
 
-        // Process files one by one
+        // Process files one by one using the skill
         const allRows: Array<Record<string, unknown>> = []
         const processedFiles: string[] = []
         const suppliers = new Set<string>()
         let processedCount = 0
+        // Skip PDFs for now, focus on Excel (skill handles PDF differently)
         const excelFiles = fileContents.filter(f => !f.content.startsWith("[PDF:"))
 
         for (const file of excelFiles) {
           const lines = file.content.split("\n")
-          const truncatedContent = lines.slice(0, 100).join("\n")
+          const truncatedContent = lines.slice(0, 150).join("\n")
           
           send("progress", { 
             step: "process", 
@@ -329,16 +342,16 @@ export async function POST() {
           })
           
           try {
+            // Call Claude with the scm-file-processor skill
             const response = await anthropic.messages.create({
               model: "claude-sonnet-4-20250514",
               max_tokens: 8192,
-              system: `Use the scm-file-processor skill to process this Excel data and extract order information.
-Return JSON only with structure: { "rows": [...], "supplier": "string" }
-Each row: { whiPo, supplierInvoice, supplier, customer, containerNo, containerType, blNo, vessel, sku, description, qty, unitPrice, amount, etd, eta }`,
+              // @ts-expect-error - skills parameter is valid but not in types yet
+              skills: ["skill1_017edr8rang10BJtVWXeqdrK"], // scm-file-processor skill
               messages: [
                 {
                   role: "user",
-                  content: `Process this file: ${file.name}\n\n${truncatedContent}`,
+                  content: `Process this file and extract Order Management table data as JSON:\n\nFile: ${file.name}\n\n${truncatedContent}`,
                 },
               ],
             })
