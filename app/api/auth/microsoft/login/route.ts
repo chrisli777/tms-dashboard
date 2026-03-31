@@ -40,6 +40,8 @@ export async function GET(request: Request) {
   console.log("[v0] OAuth redirect URI:", redirectUri)
 
   const authUrl = getAuthorizationUrl(redirectUri, state)
+  
+  console.log("[v0] Full auth URL:", authUrl)
 
   return NextResponse.redirect(authUrl)
 }

@@ -103,9 +103,13 @@ function parseExcelToText(buffer: ArrayBuffer, filename: string): string {
 }
 
 export async function POST() {
+  console.log("[v0] Sync API called")
+  
   try {
     // Check authentication
     const accessToken = await getValidAccessToken()
+    console.log("[v0] Access token:", accessToken ? "exists" : "missing")
+    
     if (!accessToken) {
       return NextResponse.json(
         { error: "not_authenticated", message: "Please sign in with Microsoft" },
@@ -114,9 +118,12 @@ export async function POST() {
     }
 
     // Get all shared files
+    console.log("[v0] Fetching shared files...")
     const files = await getSharedFiles(accessToken)
+    console.log("[v0] Found files:", files.length, files.map(f => f.name))
 
     if (files.length === 0) {
+      console.log("[v0] No files found, returning empty result")
       return NextResponse.json({
         newRows: [],
         filesProcessed: [],
@@ -129,10 +136,12 @@ export async function POST() {
     }
 
     // Download and parse all files
+    console.log("[v0] Downloading and parsing files...")
     const fileContents: Array<{ name: string; content: string }> = []
 
     for (const file of files) {
       try {
+        console.log("[v0] Processing file:", file.name)
         const buffer = await downloadFile(accessToken, file.driveId, file.id)
 
         if (file.name.toLowerCase().endsWith(".xlsx") || file.name.toLowerCase().endsWith(".xls")) {
@@ -149,11 +158,13 @@ export async function POST() {
     }
 
     // Prepare content for Claude
+    console.log("[v0] Preparing content for Claude, files processed:", fileContents.length)
     const filesText = fileContents
       .filter(f => !f.content.startsWith("[PDF:"))
       .map(f => f.content)
       .join("\n\n---\n\n")
 
+    console.log("[v0] Calling Claude API...")
     // Call Claude with scm-file-processor and scm-master-generator skills
     const response = await anthropic.messages.create({
       model: "claude-sonnet-4-20250514",
@@ -226,10 +237,12 @@ Extract all line items and return the complete master table as JSON.`,
     })
 
     // Extract text response
+    console.log("[v0] Claude response received")
     const textContent = response.content.find(c => c.type === "text")
     if (!textContent || textContent.type !== "text") {
       throw new Error("No response from Claude")
     }
+    console.log("[v0] Claude response length:", textContent.text.length)
 
     // Parse JSON from response
     let result: {
@@ -269,7 +282,7 @@ Extract all line items and return the complete master table as JSON.`,
       throw new Error("Failed to parse Claude response")
     }
 
-    return NextResponse.json({
+    const finalResult = {
       newRows: result.rows || [],
       filesProcessed: result.filesProcessed || fileContents.map(f => f.name),
       summary: {
@@ -277,7 +290,10 @@ Extract all line items and return the complete master table as JSON.`,
         totalNewRows: result.rows?.length || 0,
         suppliers: result.suppliers || [],
       },
-    })
+    }
+    
+    console.log("[v0] Sync complete - files:", finalResult.summary.totalFiles, "rows:", finalResult.summary.totalNewRows)
+    return NextResponse.json(finalResult)
   } catch (err) {
     console.error("[v0] Sync error:", err)
     return NextResponse.json(

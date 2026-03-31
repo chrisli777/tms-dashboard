@@ -60,33 +60,71 @@ interface SyncResult {
   }
 }
 
-type Step = "idle" | "syncing" | "preview" | "confirming" | "done"
+type Step = "auth" | "idle" | "syncing" | "preview" | "confirming" | "done"
+
+interface AuthStatus {
+  authenticated: boolean
+  user?: { name: string; email: string }
+}
 
 export function SyncPODialog() {
   const router = useRouter()
   const [open, setOpen] = useState(false)
-  const [step, setStep] = useState<Step>("idle")
+  const [step, setStep] = useState<Step>("auth")
+  const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null)
+  const [authLoading, setAuthLoading] = useState(true)
   const [progress, setProgress] = useState(0)
   const [progressMessage, setProgressMessage] = useState("")
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  // Check auth when dialog opens
+  const checkAuth = async () => {
+    setAuthLoading(true)
+    try {
+      const response = await fetch("/api/auth/microsoft/status")
+      const data = await response.json()
+      setAuthStatus(data)
+      setStep(data.authenticated ? "idle" : "auth")
+    } catch {
+      setStep("auth")
+    } finally {
+      setAuthLoading(false)
+    }
+  }
+
+  const handleSignIn = () => {
+    window.location.href = `/api/auth/microsoft/login?returnUrl=${encodeURIComponent(window.location.pathname)}`
+  }
+
+  // Check auth when dialog opens
+  const handleOpenChange = (isOpen: boolean) => {
+    setOpen(isOpen)
+    if (isOpen) {
+      checkAuth()
+    }
+  }
+
   const handleSync = async () => {
+    console.log("[v0] handleSync called")
     setStep("syncing")
     setError(null)
     setProgress(10)
     setProgressMessage("Connecting to OneDrive...")
 
     try {
+      console.log("[v0] Calling /api/po/sync...")
       // Call Claude to process all files and generate master table
       const response = await fetch("/api/po/sync", {
         method: "POST",
       })
 
+      console.log("[v0] Response status:", response.status)
       setProgress(50)
       setProgressMessage("Processing files with Claude...")
 
       const data = await response.json()
+      console.log("[v0] Response data:", JSON.stringify(data).substring(0, 500))
 
       if (!response.ok) {
         if (data.error === "not_authenticated") {
@@ -101,6 +139,7 @@ export function SyncPODialog() {
       setSyncResult(data)
       setStep("preview")
     } catch (err) {
+      console.log("[v0] Sync error:", err)
       setError(err instanceof Error ? err.message : "Sync failed")
       setStep("idle")
     }
@@ -136,7 +175,7 @@ export function SyncPODialog() {
   const handleClose = () => {
     setOpen(false)
     setTimeout(() => {
-      setStep("idle")
+      setStep(authStatus?.authenticated ? "idle" : "auth")
       setSyncResult(null)
       setError(null)
       setProgress(0)
@@ -144,7 +183,7 @@ export function SyncPODialog() {
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button variant="outline" className="gap-2">
           <RefreshCw className="size-4" />
@@ -154,6 +193,7 @@ export function SyncPODialog() {
       <DialogContent className="max-h-[85vh] max-w-5xl overflow-hidden">
         <DialogHeader>
           <DialogTitle>
+            {step === "auth" && "Sign in to OneDrive"}
             {step === "idle" && "Update Purchase Orders"}
             {step === "syncing" && "Syncing with OneDrive..."}
             {step === "preview" && "Review New Data"}
@@ -161,6 +201,7 @@ export function SyncPODialog() {
             {step === "done" && "Sync Complete"}
           </DialogTitle>
           <DialogDescription>
+            {step === "auth" && "Sign in with your Microsoft account to access shared files."}
             {step === "idle" && "Scan OneDrive shared files and update the master table with new data."}
             {step === "syncing" && "Claude is processing your files..."}
             {step === "preview" && `Found ${syncResult?.summary.totalNewRows || 0} new rows from ${syncResult?.summary.totalFiles || 0} files`}
@@ -173,6 +214,41 @@ export function SyncPODialog() {
           <div className="flex items-center gap-2 rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
             <AlertCircle className="size-4 shrink-0" />
             {error}
+          </div>
+        )}
+
+        {/* Auth State */}
+        {step === "auth" && (
+          <div className="flex flex-col items-center gap-6 py-8">
+            {authLoading ? (
+              <Loader2 className="size-8 animate-spin text-muted-foreground" />
+            ) : (
+              <>
+                <div className="flex size-16 items-center justify-center rounded-full bg-muted">
+                  <svg viewBox="0 0 23 23" className="size-10">
+                    <path fill="#f35325" d="M1 1h10v10H1z" />
+                    <path fill="#81bc06" d="M12 1h10v10H12z" />
+                    <path fill="#05a6f0" d="M1 12h10v10H1z" />
+                    <path fill="#ffba08" d="M12 12h10v10H12z" />
+                  </svg>
+                </div>
+                <div className="text-center">
+                  <p className="text-lg font-semibold">Connect to OneDrive</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Sign in with your Microsoft account to access shared files
+                  </p>
+                </div>
+                <Button onClick={handleSignIn} size="lg" className="gap-2">
+                  <svg viewBox="0 0 23 23" className="size-5">
+                    <path fill="#f35325" d="M1 1h10v10H1z" />
+                    <path fill="#81bc06" d="M12 1h10v10H12z" />
+                    <path fill="#05a6f0" d="M1 12h10v10H1z" />
+                    <path fill="#ffba08" d="M12 12h10v10H12z" />
+                  </svg>
+                  Sign in with Microsoft
+                </Button>
+              </>
+            )}
           </div>
         )}
 
