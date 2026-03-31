@@ -340,23 +340,27 @@ async function downloadFile(accessToken: string, driveId: string, fileId: string
   return await contentResponse.arrayBuffer()
 }
 
-// Pre-filter files by name pattern - STRICT matching for supplier files only
+// Pre-filter files by name pattern - per skill definition:
+// 1. HX→Genie (.xlsx): 有 "invoice" 和 "details of containers" sheet，文件名含 "Terex"
+// 2. HX→Clark (.xls): 文件名含 "CLARK"
+// 3. TJJSH (.xlsx): 文件名含 "TJLT"
+// 4. AMC (PDF): 含 invoice number 格式如 "25120601"
 function isPotentialPOFile(filename: string): boolean {
   const name = filename.toLowerCase()
   
-  // HX → Genie: "Terex2025-xxx" pattern
-  if (name.includes("terex")) return true
+  // HX → Genie (.xlsx): file contains "terex"
+  if (name.includes("terex") && name.endsWith(".xlsx")) return true
   
-  // HX → Clark: "CLARK" in filename with .xls
+  // HX → Clark (.xls): file contains "clark"
   if (name.includes("clark") && name.endsWith(".xls")) return true
   
-  // TJJSH: "TJLT" prefix
-  if (name.includes("tjlt")) return true
+  // TJJSH (.xlsx): file contains "tjlt"
+  if (name.includes("tjlt") && name.endsWith(".xlsx")) return true
   
-  // AMC Pipeline: "AMC PIPELINE" in name (the actual supplier pipeline file)
-  if (name.includes("amc") && name.includes("pipeline")) return true
+  // AMC (PDF): contains 8-digit invoice number like "25120601"
+  if (name.endsWith(".pdf") && /\d{8}/.test(name)) return true
   
-  // All other files are skipped - we only process known supplier formats
+  // All other files are skipped
   return false
 }
 
