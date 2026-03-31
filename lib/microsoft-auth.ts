@@ -7,18 +7,17 @@ const TENANT_ID = "3ca75e96-5bb7-49da-8836-e47210951589"
 const CLIENT_ID = "533c767d-c6f2-4eff-8086-c4afcb6447e8"
 const CLIENT_SECRET = "gzh8Q~GMus~t5iJdO1UVxvPsJOXThl66yE0lscv~"
 
-// Scopes needed for OneDrive access
-// Using minimal scopes that don't require admin consent
+// Scopes needed for OneDrive access (admin consent already granted)
 const SCOPES = [
   "openid",
   "profile", 
   "email",
   "offline_access",
-  "Files.Read",           // Read user's files (no admin consent needed)
-  "Files.Read.Selected",  // Read selected files (no admin consent needed)
+  "Files.Read.All",  // Read all files user can access (including shared)
+  "User.Read",       // Read user profile
 ].join(" ")
 
-export function getAuthorizationUrl(redirectUri: string, state: string, forceConsent: boolean = false): string {
+export function getAuthorizationUrl(redirectUri: string, state: string): string {
   const params = new URLSearchParams({
     client_id: CLIENT_ID,
     response_type: "code",
@@ -26,9 +25,8 @@ export function getAuthorizationUrl(redirectUri: string, state: string, forceCon
     response_mode: "query",
     scope: SCOPES,
     state: state,
-    // Use "consent" to force re-authorization with new permissions
-    // Use "select_account" for normal login
-    prompt: forceConsent ? "consent" : "select_account",
+    // Use "login" since admin consent is already granted
+    prompt: "login",
   })
 
   return `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/authorize?${params}`

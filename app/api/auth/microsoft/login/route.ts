@@ -5,12 +5,9 @@ import { cookies } from "next/headers"
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const returnUrl = searchParams.get("returnUrl") || "/orders"
-  const forceConsent = searchParams.get("force") === "true"
   
-  // Clear existing tokens if forcing re-consent
-  if (forceConsent) {
-    await clearAuthCookies()
-  }
+  // Clear any existing tokens before new login
+  await clearAuthCookies()
   
   // Generate a random state for CSRF protection
   const state = Buffer.from(
@@ -34,8 +31,7 @@ export async function GET(request: Request) {
   const baseUrl = new URL(request.url).origin
   const redirectUri = `${baseUrl}/api/auth/microsoft/callback`
 
-  // Force consent to get new permissions
-  const authUrl = getAuthorizationUrl(redirectUri, state, forceConsent)
+  const authUrl = getAuthorizationUrl(redirectUri, state)
 
   return NextResponse.redirect(authUrl)
 }
