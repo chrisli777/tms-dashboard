@@ -8,119 +8,133 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 })
 
-// SCM File Processor Skill - embedded from Claude Console (complete version)
+// SCM File Processor Skill - complete version from supplier_formats.md
 const SCM_FILE_PROCESSOR_SKILL = `# SCM File Processor
 
-WHI 供应链数据中台的入口。所有供应商文件经本 Skill 解析后输出统一的 Order Management 表。
+Parse supplier shipment files into unified 15-column Order Management table.
 
-## 供应商识别 (从文件名判断)
+## Supplier Detection (from filename)
 
-**关键规则**: 根据文件名前缀判断供应商:
-- 文件名含 "AMC" → supplier="AMC", customer="Genie"
-- 文件名含 "Terex" → supplier="HX", customer="Genie"
-- 文件名含 "CLARK" → supplier="HX", customer="Clark"
-- 文件名含 "TJLT" → supplier="TJJSH", customer="Genie"
+- Filename contains "AMC" → supplier="AMC", customer="Genie"
+- Filename contains "Terex" → supplier="HX", customer="Genie"  
+- Filename contains "CLARK" → supplier="HX", customer="Clark"
+- Filename contains "TJLT" → supplier="TJJSH", customer="Genie"
 
-## 输出目标: Order Management 表
+## Output: 15-Column Table
 
-每行 = 一个 (Invoice, Container, SKU) 组合。15 列：
+| Column | Type | Notes |
+|--------|------|-------|
+| Supplier | string | AMC / HX / TJJSH |
+| Customer | string | Genie / Clark / Deere |
+| Invoice | string | Full prefix preserved |
+| BL No. | string | MBL preferred |
+| WHI PO | string | Original format |
+| Container | string | 4 letters + 7 digits (e.g. MSOU7576033) |
+| Type | string | 20GP / 40GP / 40HQ ONLY |
+| SKU | string | Numeric only, NO letter suffix (e.g. 1260198 NOT 1260198-A) |
+| Qty | int | > 0 only |
+| GW(kg) | float | MT × 1000 |
+| Unit Price(USD) | float | $/PCS (never $/MT) |
+| Amount(USD) | float | Qty × Price |
+| ETD | date | YYYY-MM-DD |
+| ETA | date | ETD + 30 days if unavailable |
+| Status | string | Cleared / In Transit / Pending |
 
-| # | 列名 | 类型 | 说明 |
-|---|------|------|------|
-| 1 | Supplier | string | AMC / HX / TJJSH (根据文件名判断) |
-| 2 | Customer | string | Genie / Clark / Deere |
-| 3 | Invoice | string | 保留完整前缀 |
-| 4 | BL No. | string | 优先 MBL |
-| 5 | WHI PO | string | 原始格式 |
-| 6 | Container | string | 11位格式 |
-| 7 | Type | string | 20GP / 40GP / 40HQ only |
-| 8 | SKU | string | 保留后缀 |
-| 9 | Qty | int | > 0 才输出 |
-| 10 | GW(kg) | float | MT×1000 |
-| 11 | Unit Price(USD) | float | $/PCS |
-| 12 | Amount(USD) | float | Qty × Price |
-| 13 | ETD | date | YYYY-MM-DD |
-| 14 | ETA | date | ETD + 30天 |
-| 15 | Status | string | Cleared / In Transit / Pending |
+## 1. AMC (Excel Invoice)
 
-## 1. AMC (Excel 发票)
+**Filename**: AMC{YYYY}-{MMDD}... or contains "AMC"
+**supplier="AMC", customer="Genie"**
 
-**文件名**: AMC{YYYY}-{MMDD}... 或含 "AMC" 的 Excel
+**Parsing Rules**:
+- Find "invoice" sheet or first sheet
+- Scan for header row containing "Part" or "PN" AND "Qty"
+- Column mapping: Part# → SKU (numeric only, strip -A/-B/-C suffix), PO → WHI PO, Qty, Unit Price ($/PCS), Amount
+- Invoice# from filename (e.g. "AMC2026-0301")
+- Look for container info in "details of containers" sheet if exists
 
-**读取规则**:
-- 找 "invoice" sheet 或第一个 sheet
-- 扫描找到包含 "Part" 或 "PN" 和 "Qty" 的 header 行
-- 列映射: Part#→SKU, PO→WHI PO, Qty, Unit Price($/PCS), Amount
-- Invoice# 从文件名或 sheet 中提取 (如 "AMC2026-0301")
-- **supplier="AMC", customer="Genie"**
+## 2. HX-Genie (.xlsx)
 
-## 2. HX → Genie (.xlsx)
+**Filename**: Terex{YYYY}-{batch}...
+**supplier="HX", customer="Genie"**
 
-**文件名**: Terex{YYYY}-{batch}...
+**Invoice Sheet** (dynamic header scan):
+- Scan rows 1-50 for header containing "PART" AND "Q'TY"
+- Find $/PCS column (look for "/PCS" in sub-header row)
+- Column mapping: Col A → SKU (with GT suffix if present), Col D → WHI PO, $/PCS col → Unit Price (NOT $/MT!)
+- Invoice# from metadata rows above header
 
-**读 invoice sheet:**
-- Header 在 ~Row 24: PART NO. | PART NAME | P.O NO. | Q'TY | $/MT | $/PCS | AMOUNT
-- 列映射: ColA→SKU, ColD→WHI PO, ColE→Qty, ColH→$/PCS(不是$/MT!), ColI→Amount
-- Invoice# 从 H10 或文件名
+**Details of Containers Sheet**:
+- R1,C3 = Vessel, R2,C3 = BL# (MBL), R5,C3 = ETD
+- R7 = Header, R8+ = Container data
+- Col 2 = Container NO. (11 chars: 4 letters + 7 digits)
+- Type: contains "20" → 20GP, contains "40" + "H"/"HQ" → 40HQ, else → 40GP
 
-**读 details of containers sheet:**
-- R1,C3=Vessel, R2,C3=BL#, R5,C3=ETD
-- R8+ = Container NO.(Col2), Type(从文本判断20GP/40GP/40HQ)
-- **supplier="HX", customer="Genie"**
+## 3. HX-Clark (.xls/.xlsx)
 
-## 3. HX → Clark (.xls)
+**Filename**: CLARK{YYYYMMDD}...
+**supplier="HX", customer="Clark"**
 
-**文件名**: CLARK{YYYYMMDD}...
-
-**读 Invoice sheet:**
+**Invoice Sheet**:
 - Header Row 15: PART NO. | ORDER NO. | Q'TY | $/PCS | AMOUNT
-- 列映射: C1→SKU, C2→WHI PO, C4→Qty, C7→$/PCS, C8→Amount
-- Invoice# 从 R8,C7
+- R7,C7 = Delivery Date (ETD), R8,C7 = Invoice#
+- Column mapping: C1 → SKU (7-digit, no GT suffix), C2 → WHI PO, C4 → Qty, C7 → $/PCS, C8 → Amount
 
-**读 details of containers sheet:**
-- R2,C2=BL#, R3,C2=Vessel
-- R7+ = Container 数据
-- **supplier="HX", customer="Clark"**
+**Details of Containers Sheet**:
+- R1,C2 = Invoice#, R2,C2 = BL#, R3,C2 = Vessel
+- R7+ = Container data (one container spans multiple SKU rows)
+- Skip rows where GW=0 AND NW=0
 
 ## 4. TJJSH (.xlsx)
 
-**文件名**: TJLT{YYYYMMDD}...
+**Filename**: TJLT{YYYYMMDD}...
+**supplier="TJJSH", customer="Genie"**
 
-**读 CI sheet:**
-- R3,C7=Invoice#
-- Header Row 17: Part Number | QTY | UNIT PRICE | AMOUNT | PO
-- 列映射: C4→SKU, C5→Qty, C6→$/PCS, C7→Amount, C9→WHI PO
-- **supplier="TJJSH", customer="Genie"**
+**CI Sheet** (Commercial Invoice):
+- R3,C7 = Invoice#, R4,C7 = Date, R5,C7 = PO
+- Header Row 17: C4=Part Number, C5=QTY, C6=UNIT PRICE, C7=AMOUNT, C9=PO
+- SKU format: 8803-{number} (no GT suffix)
 
-## 输出格式
+## Container Type Standardization
 
-返回 JSON (supplier 必须根据文件名正确设置):
+| Raw | Standard |
+|-----|----------|
+| 20G, 20'GP, 20GP, 20BX, 20ST | **20GP** |
+| 40G, 40GP | **40GP** |
+| 40HQ, 40HC, 40'HQ | **40HQ** |
+
+## SKU Cleanup Rules
+
+- Remove letter suffixes: 1260198-A → 1260198, 132383-C → 132383
+- Keep GT suffix for HX-Genie: 1282199GT stays as 1282199GT
+- Format: numeric only (except GT suffix for HX)
+
+## Output JSON
+
 {
   "rows": [
     {
-      "supplier": "AMC",  // 文件名含AMC则为AMC，含Terex则为HX，含CLARK则为HX，含TJLT则为TJJSH
+      "supplier": "AMC",
       "customer": "Genie",
       "supplierInvoice": "AMC2026-0301",
-      "blNo": "",
+      "blNo": "COSU6437079380",
       "whiPo": "0000728",
-      "containerNo": "",
-      "containerType": "",
-      "sku": "1260198-A",
+      "containerNo": "MSOU7576033",
+      "containerType": "40HQ",
+      "sku": "1260198",
       "qty": 120,
-      "gw": 0,
+      "gw": 1500,
       "unitPrice": 5.50,
       "amount": 660.00,
-      "etd": "",
-      "eta": "",
-      "status": "Pending"
+      "etd": "2026-03-01",
+      "eta": "2026-03-31",
+      "status": "In Transit"
     }
   ],
-  "supplier": "AMC",
-  "filesProcessed": ["AMC2026-0301 3.11 8小6大 DOC.(1)(3).xlsx"]
+  "supplier": "AMC"
 }
 
-如果文件不是有效的 PO/Invoice，返回:
-{"skip": true, "reason": "描述原因"}
+If file is not a valid PO/Invoice:
+{"skip": true, "reason": "description"}
 `
 
 interface OneDriveFile {
