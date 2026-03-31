@@ -347,20 +347,25 @@ export function SyncPODialog() {
               </div>
             )}
 
-            {/* New rows table */}
+            {/* New rows table - horizontally scrollable */}
             {syncResult.newRows.length > 0 ? (
-              <ScrollArea className="h-[400px] rounded-lg border">
-                <Table>
-                  <TableHeader className="sticky top-0 bg-background">
+              <div className="flex-1 min-h-0 rounded-lg border overflow-auto">
+                <Table className="min-w-[1200px]">
+                  <TableHeader className="sticky top-0 bg-background z-10">
                     <TableRow>
-                      <TableHead className="w-[100px]">WHI PO</TableHead>
-                      <TableHead>Invoice</TableHead>
-                      <TableHead>Supplier</TableHead>
-                      <TableHead>Container</TableHead>
-                      <TableHead>SKU</TableHead>
-                      <TableHead className="text-right">Qty</TableHead>
-                      <TableHead className="text-right">Amount</TableHead>
-                      <TableHead>ETD</TableHead>
+                      <TableHead className="w-[100px] whitespace-nowrap">WHI PO</TableHead>
+                      <TableHead className="whitespace-nowrap">Invoice</TableHead>
+                      <TableHead className="whitespace-nowrap">Supplier</TableHead>
+                      <TableHead className="whitespace-nowrap">Customer</TableHead>
+                      <TableHead className="whitespace-nowrap">Container</TableHead>
+                      <TableHead className="whitespace-nowrap">Type</TableHead>
+                      <TableHead className="whitespace-nowrap">BL No.</TableHead>
+                      <TableHead className="whitespace-nowrap">SKU</TableHead>
+                      <TableHead className="text-right whitespace-nowrap">Qty</TableHead>
+                      <TableHead className="text-right whitespace-nowrap">Unit Price</TableHead>
+                      <TableHead className="text-right whitespace-nowrap">Amount</TableHead>
+                      <TableHead className="whitespace-nowrap">ETD</TableHead>
+                      <TableHead className="whitespace-nowrap">ETA</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -369,16 +374,21 @@ export function SyncPODialog() {
                         <TableCell className="font-mono text-sm">{row.whiPo}</TableCell>
                         <TableCell className="font-mono text-sm">{row.supplierInvoice}</TableCell>
                         <TableCell>{row.supplier}</TableCell>
-                        <TableCell className="font-mono text-sm">{row.containerNo}</TableCell>
+                        <TableCell>{row.customer}</TableCell>
+                        <TableCell className="font-mono text-sm">{row.containerNo || "-"}</TableCell>
+                        <TableCell>{row.containerType || "-"}</TableCell>
+                        <TableCell className="font-mono text-sm">{row.blNo || "-"}</TableCell>
                         <TableCell>{row.sku}</TableCell>
-                        <TableCell className="text-right">{row.qty.toLocaleString()}</TableCell>
-                        <TableCell className="text-right">${row.amount.toLocaleString()}</TableCell>
-                        <TableCell>{row.etd}</TableCell>
+                        <TableCell className="text-right">{row.qty?.toLocaleString() || 0}</TableCell>
+                        <TableCell className="text-right">${row.unitPrice?.toFixed(2) || "0.00"}</TableCell>
+                        <TableCell className="text-right">${row.amount?.toLocaleString() || 0}</TableCell>
+                        <TableCell>{row.etd || "-"}</TableCell>
+                        <TableCell>{row.eta || "-"}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
-              </ScrollArea>
+              </div>
             ) : (
               <div className="flex flex-col items-center gap-2 py-8 text-muted-foreground">
                 <Check className="size-8" />
