@@ -574,7 +574,7 @@ ${fullContent}`,
                   if (parsed.skip) {
                     send("progress", { 
                       step: "process", 
-                      message: `Skipped: ${file.name} (${parsed.reason})`, 
+                      message: `Skipped: ${file.name} - ${parsed.reason}`, 
                       percent: 55 + Math.round((processedCount / Math.max(excelFiles.length, 1)) * 40)
                     })
                   } else if (parsed.rows && parsed.rows.length > 0) {
@@ -589,16 +589,33 @@ ${fullContent}`,
                       percent: 55 + Math.round((processedCount / Math.max(excelFiles.length, 1)) * 40)
                     })
                   } else {
-                    console.log("[v0] No rows in response for", file.name)
+                    send("progress", { 
+                      step: "process", 
+                      message: `No data found in: ${file.name} (rows: ${parsed.rows?.length || 0})`, 
+                      percent: 55 + Math.round((processedCount / Math.max(excelFiles.length, 1)) * 40)
+                    })
                   }
                 } catch (parseErr) {
                   console.error("[v0] JSON parse error:", parseErr, "for string:", jsonStr.substring(0, 100))
+                  send("progress", { 
+                    step: "process", 
+                    message: `JSON parse error: ${file.name}`, 
+                    percent: 55 + Math.round((processedCount / Math.max(excelFiles.length, 1)) * 40)
+                  })
                 }
               } else {
-                console.log("[v0] No JSON found in response for", file.name)
+                send("progress", { 
+                  step: "process", 
+                  message: `No JSON in response: ${file.name}`, 
+                  percent: 55 + Math.round((processedCount / Math.max(excelFiles.length, 1)) * 40)
+                })
               }
             } else {
-              console.log("[v0] No text content in response for", file.name)
+              send("progress", { 
+                step: "process", 
+                message: `No text response: ${file.name}`, 
+                percent: 55 + Math.round((processedCount / Math.max(excelFiles.length, 1)) * 40)
+              })
             }
           } catch (err) {
             console.error("[v0] Claude error for:", file.name, err)
