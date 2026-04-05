@@ -700,17 +700,64 @@ ${fullContent}`,
           processedCount++
         }
 
+        send("progress", { step: "complete", message: "Deduplicating rows...", percent: 98 })
+        
+        // Deduplicate rows based on key fields (Invoice + SKU base + Container + Qty)
+        const deduplicatedRows: Array<Record<string, unknown>> = []
+        const seenKeys = new Set<string>()
+        
+        for (const row of allRows) {
+          // Normalize SKU - remove GT suffix for comparison
+          const skuBase = String(row.sku || "").replace(/GT$/i, "").replace(/-[A-Z]$/i, "")
+          const key = `${row.supplierInvoice}-${skuBase}-${row.containerNo || ""}-${row.qty}`
+          
+          if (!seenKeys.has(key)) {
+            seenKeys.add(key)
+            // Prefer rows with price > 0
+            if ((row.unitPrice as number) > 0 || (row.amount as number) > 0) {
+              deduplicatedRows.push(row)
+            } else {
+              // Check if we already have a row with price for this SKU
+              const existingWithPrice = deduplicatedRows.find(r => {
+                const rSkuBase = String(r.sku || "").replace(/GT$/i, "").replace(/-[A-Z]$/i, "")
+                return r.supplierInvoice === row.supplierInvoice && 
+                       rSkuBase === skuBase && 
+                       r.qty === row.qty &&
+                       ((r.unitPrice as number) > 0 || (r.amount as number) > 0)
+              })
+              if (!existingWithPrice) {
+                deduplicatedRows.push(row)
+              }
+            }
+          } else {
+            // If duplicate, prefer the one with price
+            if ((row.unitPrice as number) > 0 || (row.amount as number) > 0) {
+              const existingIdx = deduplicatedRows.findIndex(r => {
+                const rSkuBase = String(r.sku || "").replace(/GT$/i, "").replace(/-[A-Z]$/i, "")
+                return r.supplierInvoice === row.supplierInvoice && 
+                       rSkuBase === skuBase && 
+                       r.qty === row.qty
+              })
+              if (existingIdx >= 0 && (deduplicatedRows[existingIdx].unitPrice as number) === 0) {
+                deduplicatedRows[existingIdx] = row
+              }
+            }
+          }
+        }
+        
+        console.log("[v0] Deduplication: ", allRows.length, "->", deduplicatedRows.length)
+        
         send("progress", { step: "complete", message: "Sync complete!", percent: 100 })
 
         send("complete", {
-          newRows: allRows,
+          newRows: deduplicatedRows,
           filesProcessed: processedFiles,
           summary: {
             totalFiles: fileContents.length,
-            totalNewRows: allRows.length,
+            totalNewRows: deduplicatedRows.length,
             suppliers: Array.from(suppliers),
           },
-          debug: `Processed ${processedFiles.length} of ${fileContents.length} files`,
+          debug: `Processed ${processedFiles.length} of ${fileContents.length} files, deduplicated ${allRows.length} -> ${deduplicatedRows.length}`,
         })
         
         controller.close()
