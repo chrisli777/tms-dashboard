@@ -44,7 +44,7 @@ Example: File "Invoice-20251115.xlsx" in folder "AMC/Invoice-20251115-25111501" 
 | ETA | date | ETD + 30 days if unavailable |
 | Status | string | Cleared / In Transit / Pending |
 
-## 1. AMC (Excel Invoice in AMC folder)
+## 1. AMC (Excel files in AMC folder)
 
 **Folder path**: AMC/Invoice-{date}-{invoiceNo}/ or AMC/{invoiceNo}/
 **supplier="AMC", customer="Genie"**
@@ -53,20 +53,35 @@ Example: File "Invoice-20251115.xlsx" in folder "AMC/Invoice-20251115-25111501" 
 - From folder name: "Invoice-20251115-25111501" → Invoice = "25111501"
 - From folder name: "AMC2026-0301 3.11 8小6大 DOC" → Invoice = "AMC2026-0301"
 
-**BL# extraction from folder path**:
-- Look for folder starting with "BL" in path: "BL142503419969" → blNo = "142503419969"
-- Or extract from ISF/Packing list filename if contains BL number
+**BL# extraction**:
+- From PDF in folder: Look for "B/L No." field
+- Or from folder starting with "BL" in path: "BL142503419969" → blNo = "142503419969"
 
-**Container extraction**:
-- Look for "receipts" or "Receipts" Excel file in same folder
-- Receipts sheet has: Container | Type | PN | Qty | GW
-- Container format: 4 letters + 7 digits (e.g. MSOU7576033)
-- If no receipts file, check folder name for container hints
+**AMC has TWO types of Excel files**:
 
-**Invoice Excel parsing**:
-- Find header row with "Part" or "PN" AND "Qty"
-- Columns: Part# → SKU (strip -A/-B/-C suffix), PO → WHI PO, Qty, Unit Price, Amount
-- SKU cleanup: 1260198-A → 1260198, 132383-C → 132383
+1. **Full Invoice Excel** (like "AMC2026-0301 3.11 8小6大 DOC. (1)(3).xlsx"):
+   - Has header row with: Part/PN | PO | Qty | Unit Price | Amount
+   - Contains WHI PO and pricing info
+   - Parse: Part# → SKU, PO → WHI PO, Unit Price, Amount
+
+2. **Receipts Excel** (like "receipts.xlsx" or "receipts-11-15.xlsx"):
+   - Only has: Container | Type | PN | Qty | GW
+   - NO WHI PO, NO pricing
+   - Used for Container/Type mapping to SKUs
+   - If only receipts file exists, WHI PO = "" and unitPrice = 0
+
+**IMPORTANT**: When parsing receipts-only folders:
+- Still extract Container, Type, SKU, Qty from receipts
+- WHI PO stays empty (will be filled from PO master later)
+- unitPrice = 0, amount = 0 (pricing unavailable)
+- These are "pending" items that need PO matching
+
+**Container extraction from receipts**:
+- Container format: 4 letters + 7 digits (e.g. EMCU8816472)
+- Type: 20GP / 40GP / 40HQ
+- Each row maps Container + Type + SKU + Qty
+
+**SKU cleanup**: 1260198-A → 1260198, 132383-C → 132383 (strip letter suffix)
 
 ## 2. HX-Genie (.xlsx, 6-sheet workbook)
 
