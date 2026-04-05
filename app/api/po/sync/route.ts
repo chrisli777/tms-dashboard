@@ -161,6 +161,17 @@ interface OneDriveFolder {
   folderPath?: string // Track path for nested folder detection
 }
 
+// Check if a folder name is a supplier folder we should scan
+function isSupplierFolder(folderName: string): boolean {
+  const name = folderName.toLowerCase()
+  // Only scan exact supplier folders, not folders that just contain supplier names
+  // e.g. "AMC" yes, "AMC PIPELINE WEEK 5" no
+  return name === "amc" || 
+         name.startsWith("terex") || 
+         name.startsWith("clark") || 
+         name.startsWith("tjlt")
+}
+
 // Get ALL files from OneDrive (both my files and shared with me)
 async function getAllOneDriveFiles(accessToken: string): Promise<OneDriveFile[]> {
   const allFiles: OneDriveFile[] = []
@@ -170,8 +181,11 @@ async function getAllOneDriveFiles(accessToken: string): Promise<OneDriveFile[]>
     const sharedResult = await listSharedWithMe(accessToken)
     allFiles.push(...sharedResult.files)
     
-    // Scan shared folders - pass folder name as initial path
-    for (const folder of sharedResult.folders) {
+    // Only scan supplier folders - filter before recursing
+    const supplierFolders = sharedResult.folders.filter(f => isSupplierFolder(f.name))
+    console.log("[v0] Shared supplier folders:", supplierFolders.map(f => f.name))
+    
+    for (const folder of supplierFolders) {
       if (folder.driveId && folder.id) {
         const folderFiles = await getAllFilesInFolder(accessToken, folder.driveId, folder.id, folder.name)
         allFiles.push(...folderFiles)
@@ -186,8 +200,11 @@ async function getAllOneDriveFiles(accessToken: string): Promise<OneDriveFile[]>
     const myFilesResult = await listMyFiles(accessToken)
     allFiles.push(...myFilesResult.files)
     
-    // Scan my folders - pass folder name as initial path
-    for (const folder of myFilesResult.folders) {
+    // Only scan supplier folders - filter before recursing
+    const supplierFolders = myFilesResult.folders.filter(f => isSupplierFolder(f.name))
+    console.log("[v0] My supplier folders:", supplierFolders.map(f => f.name))
+    
+    for (const folder of supplierFolders) {
       if (folder.driveId && folder.id) {
         const folderFiles = await getAllFilesInFolder(accessToken, folder.driveId, folder.id, folder.name)
         allFiles.push(...folderFiles)
@@ -369,23 +386,27 @@ async function downloadFile(accessToken: string, driveId: string, fileId: string
   return await contentResponse.arrayBuffer()
 }
 
-// Pre-filter files by name OR folder path - per skill definition (any format allowed)
+// Pre-filter files by name OR folder path - per skill definition
+// Only match specific supplier folders, not general folders containing supplier names
 function isPotentialPOFile(filename: string, folderPath?: string): boolean {
   const name = filename.toLowerCase()
   const path = (folderPath || "").toLowerCase()
-  const combined = `${path}/${name}` // Check both folder path and filename
   
-  // HX → Genie: contains "terex"
-  if (combined.includes("terex")) return true
+  // Get the top-level folder name (first segment of path)
+  const topFolder = path.split("/")[0] || ""
   
-  // HX → Clark: contains "clark"
-  if (combined.includes("clark")) return true
+  // HX → Genie: top folder is "terex" or filename contains "terex"
+  if (topFolder.startsWith("terex") || name.includes("terex")) return true
   
-  // TJJSH: contains "tjlt"
-  if (combined.includes("tjlt")) return true
+  // HX → Clark: top folder is "clark" or filename contains "clark"
+  if (topFolder.startsWith("clark") || name.includes("clark")) return true
   
-  // AMC: contains "amc" (in folder OR filename)
-  if (combined.includes("amc")) return true
+  // TJJSH: top folder starts with "tjlt" or filename contains "tjlt"
+  if (topFolder.startsWith("tjlt") || name.includes("tjlt")) return true
+  
+  // AMC: top folder is exactly "amc" (not "amc pipeline", "amc something else")
+  // This ensures we only scan the "AMC" folder, not "AMC PIPELINE WEEK 5" etc.
+  if (topFolder === "amc" || name.startsWith("amc")) return true
   
   // All other files are skipped
   return false
