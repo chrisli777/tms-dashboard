@@ -214,7 +214,19 @@ export function SyncPODialog() {
           Update PO
         </Button>
       </DialogTrigger>
-      <DialogContent className="flex h-[85vh] max-h-[90vh] min-h-[400px] w-[90vw] min-w-[600px] max-w-[95vw] flex-col overflow-auto" style={{ resize: "both" }}>
+      <DialogContent className="!max-w-none !w-auto !h-auto p-0 overflow-visible">
+        <div 
+          className="flex flex-col overflow-auto rounded-lg bg-background p-6"
+          style={{ 
+            resize: "both",
+            width: "85vw",
+            height: "80vh",
+            minWidth: "600px",
+            minHeight: "400px",
+            maxWidth: "95vw",
+            maxHeight: "90vh",
+          }}
+        >
         <DialogHeader>
           <DialogTitle>
             {step === "auth" && "Sign in to OneDrive"}
@@ -442,6 +454,7 @@ export function SyncPODialog() {
             </div>
           </div>
         )}
+        </div>
       </DialogContent>
     </Dialog>
   )
