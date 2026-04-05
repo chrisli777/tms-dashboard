@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import Anthropic from "@anthropic-ai/sdk"
 import { getValidAccessToken } from "@/lib/microsoft-auth"
 import * as XLSX from "xlsx"
+import pdf from "pdf-parse"
 
 // Initialize Anthropic client
 const anthropic = new Anthropic({
@@ -390,6 +391,20 @@ function isPotentialPOFile(filename: string, folderPath?: string): boolean {
   return false
 }
 
+// Parse PDF to text - extract text content for BL# and container info
+async function parsePdfToText(buffer: ArrayBuffer, filename: string): Promise<string> {
+  try {
+    const data = await pdf(Buffer.from(buffer))
+    const result: string[] = []
+    result.push(`=== PDF File: ${filename} ===`)
+    result.push(data.text)
+    return result.join("\n")
+  } catch (err) {
+    console.error("[v0] Failed to parse PDF:", filename, err)
+    return `=== PDF File: ${filename} ===\n[Failed to parse PDF content]`
+  }
+}
+
 // Parse Excel to text - include ALL sheets with more rows for container data
 function parseExcelToText(buffer: ArrayBuffer, filename: string): string {
   const workbook = XLSX.read(buffer, { type: "array" })
@@ -476,7 +491,7 @@ export async function POST() {
           percent: 25
         })
 
-        const fileContents: Array<{ name: string; content: string; folderPath?: string }> = []
+        const fileContents: Array<{ name: string; content: string; folderPath?: string; isPdf?: boolean }> = []
         let downloadedCount = 0
 
         for (const file of potentialPOFiles) {
@@ -493,8 +508,9 @@ export async function POST() {
               const text = parseExcelToText(buffer, file.name)
               fileContents.push({ name: file.name, content: text, folderPath: file.folderPath })
             } else if (file.name.toLowerCase().endsWith(".pdf")) {
-              const base64 = Buffer.from(buffer).toString("base64")
-              fileContents.push({ name: file.name, content: `[PDF:${base64}]`, folderPath: file.folderPath })
+              // Parse PDF to extract text (for BL#, container info)
+              const text = await parsePdfToText(buffer, file.name)
+              fileContents.push({ name: file.name, content: text, folderPath: file.folderPath, isPdf: true })
             }
             
             downloadedCount++
@@ -522,13 +538,57 @@ export async function POST() {
         const processedFiles: string[] = []
         const suppliers = new Set<string>()
         let processedCount = 0
-        // Skip PDFs for now, focus on Excel (skill handles PDF differently)
-        const excelFiles = fileContents.filter(f => !f.content.startsWith("[PDF:"))
+        
+        // Separate Excel and PDF files
+        const excelFiles = fileContents.filter(f => !f.isPdf)
+        const pdfFiles = fileContents.filter(f => f.isPdf)
+        
+        // Extract BL info from PDF files first (group by folder)
+        const folderBlInfo: Record<string, { blNo?: string; containerNo?: string; etd?: string }> = {}
+        
+        for (const pdfFile of pdfFiles) {
+          const folderKey = pdfFile.folderPath || "root"
+          const text = pdfFile.content.toLowerCase()
+          
+          // Look for B/L No. pattern like "b/l no." followed by alphanumeric
+          const blMatch = pdfFile.content.match(/B\/L\s*(?:No\.?|#)?\s*[:\s]*([A-Z0-9]{10,20})/i) ||
+                         pdfFile.content.match(/(?:MBL|HBL|BL)\s*[:\s#]*([A-Z0-9]{10,20})/i) ||
+                         pdfFile.content.match(/([A-Z]{4}\d{10,12})/i) // Container-like BL format
+          
+          // Look for container number pattern (4 letters + 7 digits)
+          const containerMatch = pdfFile.content.match(/([A-Z]{4}\d{7})/g)
+          
+          // Look for ETD/On Board Date
+          const etdMatch = pdfFile.content.match(/(?:On Board Date|ETD|Departure)[:\s]*(\d{1,2}[-\/]\w{3}[-\/]\d{2,4}|\d{4}[-\/]\d{2}[-\/]\d{2})/i)
+          
+          if (blMatch || containerMatch) {
+            if (!folderBlInfo[folderKey]) {
+              folderBlInfo[folderKey] = {}
+            }
+            if (blMatch && blMatch[1]) {
+              folderBlInfo[folderKey].blNo = blMatch[1]
+              console.log("[v0] Extracted BL# from PDF:", blMatch[1], "in folder:", folderKey)
+            }
+            if (containerMatch && containerMatch[0]) {
+              folderBlInfo[folderKey].containerNo = containerMatch[0]
+              console.log("[v0] Extracted Container from PDF:", containerMatch[0], "in folder:", folderKey)
+            }
+            if (etdMatch && etdMatch[1]) {
+              folderBlInfo[folderKey].etd = etdMatch[1]
+            }
+          }
+        }
+        
+        console.log("[v0] Folder BL Info:", JSON.stringify(folderBlInfo))
 
         for (const file of excelFiles) {
           // Send more content - up to 500 lines to include container sheet data
           const lines = file.content.split("\n")
           const fullContent = lines.slice(0, 500).join("\n")
+          
+          // Get BL info from PDF in same folder
+          const folderKey = file.folderPath || "root"
+          const blInfo = folderBlInfo[folderKey] || {}
           
           send("progress", { 
             step: "process", 
@@ -537,6 +597,11 @@ export async function POST() {
           })
           
           try {
+            // Build BL info hint for Claude
+            const blInfoHint = blInfo.blNo || blInfo.containerNo 
+              ? `\nBL INFO FROM PDF IN SAME FOLDER:\n- BL No.: ${blInfo.blNo || "not found"}\n- Container: ${blInfo.containerNo || "not found"}\n- ETD: ${blInfo.etd || "not found"}\nUSE THIS BL INFO FOR ALL ROWS FROM THIS FILE.`
+              : ""
+            
             // Call Claude with embedded scm-file-processor skill
             const response = await anthropic.messages.create({
               model: "claude-sonnet-4-20250514",
@@ -550,6 +615,7 @@ Folder path: ${file.folderPath || "unknown"}
 Filename: ${file.name}
 IMPORTANT: Use folder path to determine supplier (e.g. AMC folder = AMC supplier)
 IMPORTANT: Extract container info from "details of containers" sheet if present.
+${blInfoHint}
 
 ${fullContent}`,
                 },
