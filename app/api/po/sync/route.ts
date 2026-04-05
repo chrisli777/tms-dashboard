@@ -161,6 +161,17 @@ interface OneDriveFolder {
   folderPath?: string // Track path for nested folder detection
 }
 
+// Check if a folder name is a supplier folder we should scan
+function isSupplierFolder(folderName: string): boolean {
+  const name = folderName.toLowerCase()
+  // Only scan exact supplier folders, not folders that just contain supplier names
+  // e.g. "AMC" yes, "AMC PIPELINE WEEK 5" no
+  return name === "amc" || 
+         name.startsWith("terex") || 
+         name.startsWith("clark") || 
+         name.startsWith("tjlt")
+}
+
 // Get ALL files from OneDrive (both my files and shared with me)
 async function getAllOneDriveFiles(accessToken: string): Promise<OneDriveFile[]> {
   const allFiles: OneDriveFile[] = []
@@ -170,8 +181,11 @@ async function getAllOneDriveFiles(accessToken: string): Promise<OneDriveFile[]>
     const sharedResult = await listSharedWithMe(accessToken)
     allFiles.push(...sharedResult.files)
     
-    // Scan shared folders - pass folder name as initial path
-    for (const folder of sharedResult.folders) {
+    // Only scan supplier folders - filter before recursing
+    const supplierFolders = sharedResult.folders.filter(f => isSupplierFolder(f.name))
+    console.log("[v0] Shared supplier folders:", supplierFolders.map(f => f.name))
+    
+    for (const folder of supplierFolders) {
       if (folder.driveId && folder.id) {
         const folderFiles = await getAllFilesInFolder(accessToken, folder.driveId, folder.id, folder.name)
         allFiles.push(...folderFiles)
@@ -186,8 +200,11 @@ async function getAllOneDriveFiles(accessToken: string): Promise<OneDriveFile[]>
     const myFilesResult = await listMyFiles(accessToken)
     allFiles.push(...myFilesResult.files)
     
-    // Scan my folders - pass folder name as initial path
-    for (const folder of myFilesResult.folders) {
+    // Only scan supplier folders - filter before recursing
+    const supplierFolders = myFilesResult.folders.filter(f => isSupplierFolder(f.name))
+    console.log("[v0] My supplier folders:", supplierFolders.map(f => f.name))
+    
+    for (const folder of supplierFolders) {
       if (folder.driveId && folder.id) {
         const folderFiles = await getAllFilesInFolder(accessToken, folder.driveId, folder.id, folder.name)
         allFiles.push(...folderFiles)
@@ -369,23 +386,27 @@ async function downloadFile(accessToken: string, driveId: string, fileId: string
   return await contentResponse.arrayBuffer()
 }
 
-// Pre-filter files by name OR folder path - per skill definition (any format allowed)
+// Pre-filter files by name OR folder path - per skill definition
+// Only match specific supplier folders, not general folders containing supplier names
 function isPotentialPOFile(filename: string, folderPath?: string): boolean {
   const name = filename.toLowerCase()
   const path = (folderPath || "").toLowerCase()
-  const combined = `${path}/${name}` // Check both folder path and filename
   
-  // HX → Genie: contains "terex"
-  if (combined.includes("terex")) return true
+  // Get the top-level folder name (first segment of path)
+  const topFolder = path.split("/")[0] || ""
   
-  // HX → Clark: contains "clark"
-  if (combined.includes("clark")) return true
+  // HX → Genie: top folder is "terex" or filename contains "terex"
+  if (topFolder.startsWith("terex") || name.includes("terex")) return true
   
-  // TJJSH: contains "tjlt"
-  if (combined.includes("tjlt")) return true
+  // HX → Clark: top folder is "clark" or filename contains "clark"
+  if (topFolder.startsWith("clark") || name.includes("clark")) return true
   
-  // AMC: contains "amc" (in folder OR filename)
-  if (combined.includes("amc")) return true
+  // TJJSH: top folder starts with "tjlt" or filename contains "tjlt"
+  if (topFolder.startsWith("tjlt") || name.includes("tjlt")) return true
+  
+  // AMC: top folder is exactly "amc" (not "amc pipeline", "amc something else")
+  // This ensures we only scan the "AMC" folder, not "AMC PIPELINE WEEK 5" etc.
+  if (topFolder === "amc" || name.startsWith("amc")) return true
   
   // All other files are skipped
   return false
@@ -531,84 +552,91 @@ export async function POST() {
           return
         }
 
-        send("progress", { step: "process", message: "Processing files with Claude scm-file-processor skill...", percent: 55 })
+        send("progress", { step: "process", message: "Grouping files by folder...", percent: 55 })
 
-        // Process files one by one using the skill
+        // Group files by folder (Invoice folder = one shipment)
+        const filesByFolder: Record<string, Array<{ name: string; content: string; isPdf?: boolean }>> = {}
+        
+        for (const file of fileContents) {
+          // Get the invoice folder path (e.g. "AMC/Invoice-20251115-25111501")
+          const folderKey = file.folderPath || "root"
+          if (!filesByFolder[folderKey]) {
+            filesByFolder[folderKey] = []
+          }
+          filesByFolder[folderKey].push(file)
+        }
+        
+        const folderKeys = Object.keys(filesByFolder)
+        console.log("[v0] Grouped into", folderKeys.length, "folders:", folderKeys)
+        
         const allRows: Array<Record<string, unknown>> = []
         const processedFiles: string[] = []
         const suppliers = new Set<string>()
         let processedCount = 0
-        
-        // Separate Excel and PDF files
-        const excelFiles = fileContents.filter(f => !f.isPdf)
-        const pdfFiles = fileContents.filter(f => f.isPdf)
-        
-        // Extract BL info from PDF files first (group by folder)
-        const folderBlInfo: Record<string, { blNo?: string; containerNo?: string; etd?: string }> = {}
-        
-        for (const pdfFile of pdfFiles) {
-          const folderKey = pdfFile.folderPath || "root"
-          const text = pdfFile.content.toLowerCase()
-          
-          // Look for B/L No. pattern - prioritize "B/L No." field (like FSHA03260325) over MBL
-          // Pattern 1: "B/L No." followed by value (this is the actual BL number we want)
-          const blNoMatch = pdfFile.content.match(/B\/L\s*No\.?\s*[:\s]*([A-Z]{4}\d{8,12})/i)
-          // Pattern 2: HBL (House Bill of Lading) - second priority
-          const hblMatch = pdfFile.content.match(/HBL\s*[:\s#]*([A-Z0-9]{10,20})/i)
-          // Pattern 3: MBL (Master Bill of Lading) - last resort
-          const mblMatch = pdfFile.content.match(/MBL\s*[:\s#]*([A-Z0-9]{10,20})/i)
-          
-          // Use B/L No. first, then HBL, then MBL
-          const blMatch = blNoMatch || hblMatch || mblMatch
-          
-          // Look for container number pattern (4 letters + 7 digits)
-          const containerMatch = pdfFile.content.match(/([A-Z]{4}\d{7})/g)
-          
-          // Look for ETD/On Board Date
-          const etdMatch = pdfFile.content.match(/(?:On Board Date|ETD|Departure)[:\s]*(\d{1,2}[-\/]\w{3}[-\/]\d{2,4}|\d{4}[-\/]\d{2}[-\/]\d{2})/i)
-          
-          if (blMatch || containerMatch) {
-            if (!folderBlInfo[folderKey]) {
-              folderBlInfo[folderKey] = {}
-            }
-            if (blMatch && blMatch[1]) {
-              folderBlInfo[folderKey].blNo = blMatch[1]
-              console.log("[v0] Extracted BL# from PDF:", blMatch[1], "in folder:", folderKey)
-            }
-            if (containerMatch && containerMatch[0]) {
-              folderBlInfo[folderKey].containerNo = containerMatch[0]
-              console.log("[v0] Extracted Container from PDF:", containerMatch[0], "in folder:", folderKey)
-            }
-            if (etdMatch && etdMatch[1]) {
-              folderBlInfo[folderKey].etd = etdMatch[1]
-            }
-          }
-        }
-        
-        console.log("[v0] Folder BL Info:", JSON.stringify(folderBlInfo))
 
-        for (const file of excelFiles) {
-          // Send more content - up to 500 lines to include container sheet data
-          const lines = file.content.split("\n")
-          const fullContent = lines.slice(0, 500).join("\n")
+        // Process each folder as a unit (all files in folder sent together)
+        for (const folderKey of folderKeys) {
+          const folderFiles = filesByFolder[folderKey]
+          const pdfFiles = folderFiles.filter(f => f.isPdf)
+          const excelFiles = folderFiles.filter(f => !f.isPdf)
           
-          // Get BL info from PDF in same folder
-          const folderKey = file.folderPath || "root"
-          const blInfo = folderBlInfo[folderKey] || {}
+          if (excelFiles.length === 0) {
+            console.log("[v0] Skipping folder with no Excel files:", folderKey)
+            processedCount++
+            continue
+          }
           
           send("progress", { 
             step: "process", 
-            message: `Processing: ${file.name}`, 
-            percent: 55 + Math.round((processedCount / Math.max(excelFiles.length, 1)) * 40)
+            message: `Processing folder: ${folderKey} (${folderFiles.length} files)`, 
+            percent: 55 + Math.round((processedCount / Math.max(folderKeys.length, 1)) * 40)
           })
           
-          try {
-            // Build BL info hint for Claude
-            const blInfoHint = blInfo.blNo || blInfo.containerNo 
-              ? `\nBL INFO FROM PDF IN SAME FOLDER:\n- BL No.: ${blInfo.blNo || "not found"}\n- Container: ${blInfo.containerNo || "not found"}\n- ETD: ${blInfo.etd || "not found"}\nUSE THIS BL INFO FOR ALL ROWS FROM THIS FILE.`
-              : ""
+          // Extract BL info from PDFs in this folder
+          let blNo = ""
+          let containerNo = ""
+          let etd = ""
+          
+          for (const pdfFile of pdfFiles) {
+            // Look for B/L No. pattern - prioritize "B/L No." field (like FSHA03260325) over MBL
+            const blNoMatch = pdfFile.content.match(/B\/L\s*No\.?\s*[:\s]*([A-Z]{4}\d{8,12})/i)
+            const hblMatch = pdfFile.content.match(/HBL\s*[:\s#]*([A-Z0-9]{10,20})/i)
+            const mblMatch = pdfFile.content.match(/MBL\s*[:\s#]*([A-Z0-9]{10,20})/i)
+            const blMatch = blNoMatch || hblMatch || mblMatch
             
-            // Call Claude with embedded scm-file-processor skill
+            if (blMatch && blMatch[1] && !blNo) {
+              blNo = blMatch[1]
+              console.log("[v0] Extracted BL# from PDF:", blNo, "in folder:", folderKey)
+            }
+            
+            // Container number (4 letters + 7 digits)
+            const containerMatch = pdfFile.content.match(/([A-Z]{4}\d{7})/g)
+            if (containerMatch && containerMatch[0] && !containerNo) {
+              containerNo = containerMatch[0]
+            }
+            
+            // ETD/On Board Date
+            const etdMatch = pdfFile.content.match(/(?:On Board Date|ETD|Departure)[:\s]*(\d{1,2}[-\/]\w{3}[-\/]\d{2,4}|\d{4}[-\/]\d{2}[-\/]\d{2})/i)
+            if (etdMatch && etdMatch[1] && !etd) {
+              etd = etdMatch[1]
+            }
+          }
+          
+          // Combine all Excel content from this folder
+          let combinedExcelContent = ""
+          for (const excelFile of excelFiles) {
+            const lines = excelFile.content.split("\n")
+            combinedExcelContent += `\n\n=== File: ${excelFile.name} ===\n`
+            combinedExcelContent += lines.slice(0, 400).join("\n")
+          }
+          
+          // Build BL info hint
+          const blInfoHint = blNo || containerNo 
+            ? `\nBL INFO FROM PDF IN THIS FOLDER:\n- BL No.: ${blNo || "not found"}\n- Container: ${containerNo || "not found"}\n- ETD: ${etd || "not found"}\nUSE THIS BL INFO FOR ALL ROWS.`
+            : ""
+          
+          try {
+            // Call Claude with all files from this folder
             const response = await anthropic.messages.create({
               model: "claude-sonnet-4-20250514",
               max_tokens: 8192,
@@ -616,14 +644,13 @@ export async function POST() {
               messages: [
                 {
                   role: "user",
-                  content: `Parse this Excel file and extract Order Management data as JSON.
-Folder path: ${file.folderPath || "unknown"}
-Filename: ${file.name}
+                  content: `Parse these Excel files from the same Invoice folder and extract Order Management data as JSON.
+Folder path: ${folderKey}
+Files in folder: ${folderFiles.map(f => f.name).join(", ")}
 IMPORTANT: Use folder path to determine supplier (e.g. AMC folder = AMC supplier)
-IMPORTANT: Extract container info from "details of containers" sheet if present.
 ${blInfoHint}
 
-${fullContent}`,
+${combinedExcelContent}`,
                 },
               ],
             })
@@ -632,74 +659,71 @@ ${fullContent}`,
             
             const textContent = response.content.find(c => c.type === "text")
             if (textContent && textContent.type === "text") {
-              console.log("[v0] Claude response for", file.name, ":", textContent.text.substring(0, 800))
+              console.log("[v0] Claude response for folder", folderKey, ":", textContent.text.substring(0, 800))
               
               const jsonMatch = textContent.text.match(/```json\n?([\s\S]*?)\n?```/) ||
                                textContent.text.match(/\{[\s\S]*\}/)
               
-              console.log("[v0] JSON match:", jsonMatch ? "found" : "not found")
-              
               if (jsonMatch) {
                 const jsonStr = jsonMatch[1] || jsonMatch[0]
-                console.log("[v0] Parsing JSON:", jsonStr.substring(0, 200))
                 
                 try {
                   const parsed = JSON.parse(jsonStr)
                   console.log("[v0] Parsed result - skip:", parsed.skip, "rows:", parsed.rows?.length)
                   
-                  // Check if file was skipped
+                  // Check if folder was skipped
                   if (parsed.skip) {
                     send("progress", { 
                       step: "process", 
-                      message: `Skipped: ${file.name} - ${parsed.reason}`, 
-                      percent: 55 + Math.round((processedCount / Math.max(excelFiles.length, 1)) * 40)
+                      message: `Skipped: ${folderKey} - ${parsed.reason}`, 
+                      percent: 55 + Math.round((processedCount / Math.max(folderKeys.length, 1)) * 40)
                     })
                   } else if (parsed.rows && parsed.rows.length > 0) {
                     allRows.push(...parsed.rows)
                     if (parsed.supplier) {
                       suppliers.add(parsed.supplier)
                     }
-                    processedFiles.push(file.name)
+                    processedFiles.push(folderKey)
                     send("progress", { 
                       step: "process", 
-                      message: `Extracted ${parsed.rows.length} rows from: ${file.name}`, 
-                      percent: 55 + Math.round((processedCount / Math.max(excelFiles.length, 1)) * 40)
+                      message: `Extracted ${parsed.rows.length} rows from: ${folderKey}`, 
+                      percent: 55 + Math.round((processedCount / Math.max(folderKeys.length, 1)) * 40)
                     })
                   } else {
                     send("progress", { 
                       step: "process", 
-                      message: `No data found in: ${file.name} (rows: ${parsed.rows?.length || 0})`, 
-                      percent: 55 + Math.round((processedCount / Math.max(excelFiles.length, 1)) * 40)
+                      message: `No data found in: ${folderKey}`, 
+                      percent: 55 + Math.round((processedCount / Math.max(folderKeys.length, 1)) * 40)
                     })
                   }
                 } catch (parseErr) {
-                  console.error("[v0] JSON parse error:", parseErr, "for string:", jsonStr.substring(0, 100))
+                  console.error("[v0] JSON parse error:", parseErr)
                   send("progress", { 
                     step: "process", 
-                    message: `JSON parse error: ${file.name}`, 
-                    percent: 55 + Math.round((processedCount / Math.max(excelFiles.length, 1)) * 40)
+                    message: `JSON parse error: ${folderKey}`, 
+                    percent: 55 + Math.round((processedCount / Math.max(folderKeys.length, 1)) * 40)
                   })
                 }
               } else {
                 send("progress", { 
                   step: "process", 
-                  message: `No JSON in response: ${file.name}`, 
-                  percent: 55 + Math.round((processedCount / Math.max(excelFiles.length, 1)) * 40)
+                  message: `No JSON in response: ${folderKey}`, 
+                  percent: 55 + Math.round((processedCount / Math.max(folderKeys.length, 1)) * 40)
                 })
               }
             } else {
               send("progress", { 
                 step: "process", 
-                message: `No text response: ${file.name}`, 
-                percent: 55 + Math.round((processedCount / Math.max(excelFiles.length, 1)) * 40)
+                message: `No text response: ${folderKey}`, 
+                percent: 55 + Math.round((processedCount / Math.max(folderKeys.length, 1)) * 40)
               })
             }
           } catch (err) {
-            console.error("[v0] Claude error for:", file.name, err)
+            console.error("[v0] Claude error for folder:", folderKey, err)
             send("progress", { 
               step: "process", 
-              message: `Error processing: ${file.name}`, 
-              percent: 55 + Math.round((processedCount / Math.max(excelFiles.length, 1)) * 40)
+              message: `Error processing: ${folderKey}`, 
+              percent: 55 + Math.round((processedCount / Math.max(folderKeys.length, 1)) * 40)
             })
           }
           
