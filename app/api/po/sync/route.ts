@@ -8,7 +8,7 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 })
 
-// SCM File Processor Skill - complete version from supplier_formats.md
+// SCM File Processor Skill - complete version with BOL extraction
 const SCM_FILE_PROCESSOR_SKILL = `# SCM File Processor
 
 Parse supplier shipment files into unified 15-column Order Management table.
@@ -30,11 +30,11 @@ Example: File "Invoice-20251115.xlsx" in folder "AMC/Invoice-20251115-25111501" 
 | Supplier | string | AMC / HX / TJJSH |
 | Customer | string | Genie / Clark / Deere |
 | Invoice | string | Full prefix preserved |
-| BL No. | string | MBL preferred |
+| BL No. | string | MBL preferred, extract from folder name if contains BL number |
 | WHI PO | string | Original format |
 | Container | string | 4 letters + 7 digits (e.g. MSOU7576033) |
 | Type | string | 20GP / 40GP / 40HQ ONLY |
-| SKU | string | Numeric only, NO letter suffix (e.g. 1260198 NOT 1260198-A) |
+| SKU | string | Keep GT suffix for HX, strip -A/-B/-C for AMC |
 | Qty | int | > 0 only |
 | GW(kg) | float | MT × 1000 |
 | Unit Price(USD) | float | $/PCS (never $/MT) |
@@ -43,58 +43,69 @@ Example: File "Invoice-20251115.xlsx" in folder "AMC/Invoice-20251115-25111501" 
 | ETA | date | ETD + 30 days if unavailable |
 | Status | string | Cleared / In Transit / Pending |
 
-## 1. AMC (Excel Invoice)
+## 1. AMC (Excel Invoice in AMC folder)
 
-**Filename**: AMC{YYYY}-{MMDD}... or contains "AMC"
+**Folder path**: AMC/Invoice-{date}-{invoiceNo}/ or AMC/{invoiceNo}/
 **supplier="AMC", customer="Genie"**
 
-**Parsing Rules**:
-- Find "invoice" sheet or first sheet
-- Scan for header row containing "Part" or "PN" AND "Qty"
-- Column mapping: Part# → SKU (numeric only, strip -A/-B/-C suffix), PO → WHI PO, Qty, Unit Price ($/PCS), Amount
-- Invoice# from filename (e.g. "AMC2026-0301")
-- Look for container info in "details of containers" sheet if exists
+**Invoice# extraction**:
+- From folder name: "Invoice-20251115-25111501" → Invoice = "25111501"
+- From folder name: "AMC2026-0301 3.11 8小6大 DOC" → Invoice = "AMC2026-0301"
 
-## 2. HX-Genie (.xlsx)
+**BL# extraction from folder path**:
+- Look for folder starting with "BL" in path: "BL142503419969" → blNo = "142503419969"
+- Or extract from ISF/Packing list filename if contains BL number
+
+**Container extraction**:
+- Look for "receipts" or "Receipts" Excel file in same folder
+- Receipts sheet has: Container | Type | PN | Qty | GW
+- Container format: 4 letters + 7 digits (e.g. MSOU7576033)
+- If no receipts file, check folder name for container hints
+
+**Invoice Excel parsing**:
+- Find header row with "Part" or "PN" AND "Qty"
+- Columns: Part# → SKU (strip -A/-B/-C suffix), PO → WHI PO, Qty, Unit Price, Amount
+- SKU cleanup: 1260198-A → 1260198, 132383-C → 132383
+
+## 2. HX-Genie (.xlsx, 6-sheet workbook)
 
 **Filename**: Terex{YYYY}-{batch}...
 **supplier="HX", customer="Genie"**
 
-**Invoice Sheet** (dynamic header scan):
-- Scan rows 1-50 for header containing "PART" AND "Q'TY"
-- Find $/PCS column (look for "/PCS" in sub-header row)
-- Column mapping: Col A → SKU (with GT suffix if present), Col D → WHI PO, $/PCS col → Unit Price (NOT $/MT!)
-- Invoice# from metadata rows above header
+**Invoice Sheet**:
+- Header Row ~24: PART NO. | PART NAME | P.O NO. | Q'TY | WEIGHT | $/MT | $/PCS | AMOUNT
+- Metadata: H9=Invoice Date, H10=Invoice#, H15=ETD
+- Column mapping: ColA → SKU (keep GT suffix), ColD → WHI PO, ColE → Qty, ColH → $/PCS (NOT $/MT!), ColI → Amount
 
-**Details of Containers Sheet**:
+**Details of Containers Sheet** (sheet name may have trailing space):
 - R1,C3 = Vessel, R2,C3 = BL# (MBL), R5,C3 = ETD
-- R7 = Header, R8+ = Container data
-- Col 2 = Container NO. (11 chars: 4 letters + 7 digits)
-- Type: contains "20" → 20GP, contains "40" + "H"/"HQ" → 40HQ, else → 40GP
+- R7 = Header, R8+ = Container data (odd rows=data, even rows=total)
+- Col2 = Container NO., Col3 = Seal NO., Col6 = Quantity
+- Container type: "20" → 20GP, "40"+"H"/"HQ" → 40HQ, "40" alone → 40GP
 
-## 3. HX-Clark (.xls/.xlsx)
+## 3. HX-Clark (.xls/.xlsx, 6-sheet)
 
 **Filename**: CLARK{YYYYMMDD}...
 **supplier="HX", customer="Clark"**
 
 **Invoice Sheet**:
 - Header Row 15: PART NO. | ORDER NO. | Q'TY | $/PCS | AMOUNT
-- R7,C7 = Delivery Date (ETD), R8,C7 = Invoice#
+- Metadata: R7,C7 = ETD, R8,C7 = Invoice#
 - Column mapping: C1 → SKU (7-digit, no GT suffix), C2 → WHI PO, C4 → Qty, C7 → $/PCS, C8 → Amount
 
 **Details of Containers Sheet**:
 - R1,C2 = Invoice#, R2,C2 = BL#, R3,C2 = Vessel
 - R7+ = Container data (one container spans multiple SKU rows)
-- Skip rows where GW=0 AND NW=0
+- Skip rows where GW=0 AND NW=0 (Zone 2 filter)
 
-## 4. TJJSH (.xlsx)
+## 4. TJJSH (.xlsx, 5-sheet)
 
 **Filename**: TJLT{YYYYMMDD}...
 **supplier="TJJSH", customer="Genie"**
 
 **CI Sheet** (Commercial Invoice):
-- R3,C7 = Invoice#, R4,C7 = Date, R5,C7 = PO
-- Header Row 17: C4=Part Number, C5=QTY, C6=UNIT PRICE, C7=AMOUNT, C9=PO
+- Metadata: R3,C7 = Invoice#, R4,C7 = Date, R5,C7 = PO
+- Header Row 17: C4=Part Number, C5=QTY, C6=$/PCS, C7=AMOUNT, C9=WHI PO
 - SKU format: 8803-{number} (no GT suffix)
 
 ## Container Type Standardization
@@ -105,12 +116,6 @@ Example: File "Invoice-20251115.xlsx" in folder "AMC/Invoice-20251115-25111501" 
 | 40G, 40GP | **40GP** |
 | 40HQ, 40HC, 40'HQ | **40HQ** |
 
-## SKU Cleanup Rules
-
-- Remove letter suffixes: 1260198-A → 1260198, 132383-C → 132383
-- Keep GT suffix for HX-Genie: 1282199GT stays as 1282199GT
-- Format: numeric only (except GT suffix for HX)
-
 ## Output JSON
 
 {
@@ -118,8 +123,8 @@ Example: File "Invoice-20251115.xlsx" in folder "AMC/Invoice-20251115-25111501" 
     {
       "supplier": "AMC",
       "customer": "Genie",
-      "supplierInvoice": "AMC2026-0301",
-      "blNo": "COSU6437079380",
+      "supplierInvoice": "25111501",
+      "blNo": "142503419969",
       "whiPo": "0000728",
       "containerNo": "MSOU7576033",
       "containerType": "40HQ",
