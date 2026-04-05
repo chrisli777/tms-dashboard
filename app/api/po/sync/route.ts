@@ -550,10 +550,16 @@ export async function POST() {
           const folderKey = pdfFile.folderPath || "root"
           const text = pdfFile.content.toLowerCase()
           
-          // Look for B/L No. pattern like "b/l no." followed by alphanumeric
-          const blMatch = pdfFile.content.match(/B\/L\s*(?:No\.?|#)?\s*[:\s]*([A-Z0-9]{10,20})/i) ||
-                         pdfFile.content.match(/(?:MBL|HBL|BL)\s*[:\s#]*([A-Z0-9]{10,20})/i) ||
-                         pdfFile.content.match(/([A-Z]{4}\d{10,12})/i) // Container-like BL format
+          // Look for B/L No. pattern - prioritize "B/L No." field (like FSHA03260325) over MBL
+          // Pattern 1: "B/L No." followed by value (this is the actual BL number we want)
+          const blNoMatch = pdfFile.content.match(/B\/L\s*No\.?\s*[:\s]*([A-Z]{4}\d{8,12})/i)
+          // Pattern 2: HBL (House Bill of Lading) - second priority
+          const hblMatch = pdfFile.content.match(/HBL\s*[:\s#]*([A-Z0-9]{10,20})/i)
+          // Pattern 3: MBL (Master Bill of Lading) - last resort
+          const mblMatch = pdfFile.content.match(/MBL\s*[:\s#]*([A-Z0-9]{10,20})/i)
+          
+          // Use B/L No. first, then HBL, then MBL
+          const blMatch = blNoMatch || hblMatch || mblMatch
           
           // Look for container number pattern (4 letters + 7 digits)
           const containerMatch = pdfFile.content.match(/([A-Z]{4}\d{7})/g)

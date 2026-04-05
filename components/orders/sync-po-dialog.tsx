@@ -328,13 +328,6 @@ export function SyncPODialog() {
         {/* Preview State */}
         {step === "preview" && syncResult && (
           <div className="flex flex-col gap-4">
-            {/* Debug Info */}
-            {debugInfo && (
-              <div className="rounded bg-muted p-2 text-xs font-mono break-all max-h-32 overflow-auto">
-                {debugInfo}
-              </div>
-            )}
-            
             {/* Summary */}
             <div className="flex items-center gap-4 rounded-lg bg-muted/50 p-4">
               <div className="flex items-center gap-2">
