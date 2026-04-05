@@ -53,9 +53,13 @@ Example: File "Invoice-20251115.xlsx" in folder "AMC/Invoice-20251115-25111501" 
 - From folder name: "Invoice-20251115-25111501" → Invoice = "25111501"
 - From folder name: "AMC2026-0301 3.11 8小6大 DOC" → Invoice = "AMC2026-0301"
 
-**BL# extraction**:
-- From PDF in folder: Look for "B/L No." field
-- Or from folder starting with "BL" in path: "BL142503419969" → blNo = "142503419969"
+**BOL PDF contains ALL key data**:
+- B/L No.: "FSHA01261586" (from B/L No. field)
+- WHI PO: From "Marks and Numbers" field, e.g. "0000718,8803AMC-0000720" → WHI PO = "0000718" or "0000720"
+- Container table with: CONTAINER# /SEAL#/TYPE, PKG, KGS, CBM
+  - "VPLU3220052 /EMCQDC5764/20'" → Container: VPLU3220052, Type: 20GP
+  - "GCXU6428302 /EMCWKS7294/40H" → Container: GCXU6428302, Type: 40HQ
+- Date of Issue → ETD
 
 **AMC has TWO types of Excel files**:
 
@@ -607,33 +611,62 @@ export async function POST() {
             percent: 55 + Math.round((processedCount / Math.max(folderKeys.length, 1)) * 40)
           })
           
-          // Extract BL info from PDFs in this folder
+          // Extract FULL BOL info from PDFs in this folder
           let blNo = ""
-          let containerNo = ""
+          let whiPoFromBol = ""
           let etd = ""
+          const containerList: Array<{ container: string; type: string; qty: number; kgs: number }> = []
           
           for (const pdfFile of pdfFiles) {
-            // Look for B/L No. pattern - prioritize "B/L No." field (like FSHA03260325) over MBL
-            const blNoMatch = pdfFile.content.match(/B\/L\s*No\.?\s*[:\s]*([A-Z]{4}\d{8,12})/i)
-            const hblMatch = pdfFile.content.match(/HBL\s*[:\s#]*([A-Z0-9]{10,20})/i)
-            const mblMatch = pdfFile.content.match(/MBL\s*[:\s#]*([A-Z0-9]{10,20})/i)
-            const blMatch = blNoMatch || hblMatch || mblMatch
+            const content = pdfFile.content
             
-            if (blMatch && blMatch[1] && !blNo) {
-              blNo = blMatch[1]
-              console.log("[v0] Extracted BL# from PDF:", blNo, "in folder:", folderKey)
+            // 1. Extract B/L No. (like FSHA01261586)
+            const blNoMatch = content.match(/B\/L\s*No\.?\s*[:\s]*([A-Z]{4}\d{8,12})/i)
+            if (blNoMatch && blNoMatch[1] && !blNo) {
+              blNo = blNoMatch[1]
+              console.log("[v0] Extracted BL# from BOL:", blNo)
             }
             
-            // Container number (4 letters + 7 digits)
-            const containerMatch = pdfFile.content.match(/([A-Z]{4}\d{7})/g)
-            if (containerMatch && containerMatch[0] && !containerNo) {
-              containerNo = containerMatch[0]
+            // 2. Extract WHI PO from "Marks and Numbers" section
+            // Format: "0000718,8803AMC-0000720" or just "0000720"
+            const marksMatch = content.match(/Marks\s*and\s*Numbers[\s\S]{0,100}?(\d{7})/i) ||
+                              content.match(/(\d{7}),\d{4}AMC-(\d{7})/i)
+            if (marksMatch && !whiPoFromBol) {
+              whiPoFromBol = marksMatch[1]
+              console.log("[v0] Extracted WHI PO from BOL Marks:", whiPoFromBol)
             }
             
-            // ETD/On Board Date
-            const etdMatch = pdfFile.content.match(/(?:On Board Date|ETD|Departure)[:\s]*(\d{1,2}[-\/]\w{3}[-\/]\d{2,4}|\d{4}[-\/]\d{2}[-\/]\d{2})/i)
-            if (etdMatch && etdMatch[1] && !etd) {
-              etd = etdMatch[1]
+            // 3. Extract Date of Issue as ETD
+            const dateMatch = content.match(/Date\s*of\s*Issue[\s\S]{0,30}?(\d{1,2}[-\/]\w{3}[-\/]\d{2,4})/i)
+            if (dateMatch && dateMatch[1] && !etd) {
+              etd = dateMatch[1]
+              console.log("[v0] Extracted ETD from BOL:", etd)
+            }
+            
+            // 4. Extract Container table from BOL
+            // Format: "VPLU3220052 /EMCQDC5764/20'" or "GCXU6428302 /EMCWKS7294/40H"
+            // Followed by PKG (qty), CY-CY, KGS, CBM
+            const containerLines = content.match(/([A-Z]{4}\d{7})\s*\/[A-Z0-9]+\/(20'?|40H)\s+(\d+)\s+CY-CY\s+([\d.]+)/gi)
+            
+            if (containerLines && containerLines.length > 0) {
+              console.log("[v0] Found", containerLines.length, "container lines in BOL")
+              
+              for (const line of containerLines) {
+                const match = line.match(/([A-Z]{4}\d{7})\s*\/[A-Z0-9]+\/(20'?|40H)\s+(\d+)\s+CY-CY\s+([\d.]+)/i)
+                if (match) {
+                  const containerNo = match[1]
+                  let containerType = match[2]
+                  // Normalize type: 20' -> 20GP, 40H -> 40HQ
+                  if (containerType === "20'" || containerType === "20") containerType = "20GP"
+                  if (containerType === "40H") containerType = "40HQ"
+                  
+                  const qty = parseInt(match[3], 10)
+                  const kgs = parseFloat(match[4])
+                  
+                  containerList.push({ container: containerNo, type: containerType, qty, kgs })
+                }
+              }
+              console.log("[v0] Parsed containers:", JSON.stringify(containerList))
             }
           }
           
@@ -645,10 +678,22 @@ export async function POST() {
             combinedExcelContent += lines.slice(0, 400).join("\n")
           }
           
-          // Build BL info hint
-          const blInfoHint = blNo || containerNo 
-            ? `\nBL INFO FROM PDF IN THIS FOLDER:\n- BL No.: ${blNo || "not found"}\n- Container: ${containerNo || "not found"}\n- ETD: ${etd || "not found"}\nUSE THIS BL INFO FOR ALL ROWS.`
-            : ""
+          // Build comprehensive BOL info hint with container details
+          let blInfoHint = ""
+          if (blNo || containerList.length > 0) {
+            blInfoHint = `\n=== BOL DATA EXTRACTED FROM PDF ===
+BL No.: ${blNo || "not found"}
+WHI PO: ${whiPoFromBol || "check Marks and Numbers field"}
+ETD/Date of Issue: ${etd || "not found"}
+
+CONTAINER TABLE FROM BOL (${containerList.length} containers):
+${containerList.map(c => `- Container: ${c.container}, Type: ${c.type}, PKG: ${c.qty}, KGS: ${c.kgs}`).join("\n")}
+
+IMPORTANT: Use this BOL data for ALL rows. Each container row = one shipment line.
+If Excel has SKU details, match them with container data.
+If only BOL data, create rows from container table with whiPo="${whiPoFromBol}".
+=== END BOL DATA ===`
+          }
           
           try {
             // Call Claude with all files from this folder
