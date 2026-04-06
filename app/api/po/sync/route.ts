@@ -44,48 +44,44 @@ Example: File "Invoice-20251115.xlsx" in folder "AMC/Invoice-20251115-25111501" 
 | ETA | date | ETD + 30 days if unavailable |
 | Status | string | Cleared / In Transit / Pending |
 
-## 1. AMC (Excel files in AMC folder)
+## 1. AMC Folder Processing
 
 **Folder path**: AMC/Invoice-{date}-{invoiceNo}/ or AMC/{invoiceNo}/
 **supplier="AMC", customer="Genie"**
 
-**Invoice# extraction**:
-- From folder name: "Invoice-20251115-25111501" → Invoice = "25111501"
-- From folder name: "AMC2026-0301 3.11 8小6大 DOC" → Invoice = "AMC2026-0301"
+### STEP 1: Parse BOL PDF first (provides key shipment info)
 
-**BOL PDF contains ALL key data**:
-- B/L No.: "FSHA01261586" (from B/L No. field)
-- WHI PO: From "Marks and Numbers" field, e.g. "0000718,8803AMC-0000720" → WHI PO = "0000718" or "0000720"
-- Container table with: CONTAINER# /SEAL#/TYPE, PKG, KGS, CBM
-  - "VPLU3220052 /EMCQDC5764/20'" → Container: VPLU3220052, Type: 20GP
-  - "GCXU6428302 /EMCWKS7294/40H" → Container: GCXU6428302, Type: 40HQ
-- Date of Issue → ETD
+BOL PDF contains:
+- **B/L No.**: From "B/L No." field (e.g. "FSHA01261586")
+- **WHI PO**: From "Marks and Numbers" field (e.g. "0000718,8803AMC-0000720" → extract "0000718" or "0000720")
+- **Container table**: 
+  - Format: "VPLU3220052 /EMCQDC5764/20'" = Container: VPLU3220052, Type: 20GP
+  - Format: "GCXU6428302 /EMCWKS7294/40H" = Container: GCXU6428302, Type: 40HQ
+  - PKG column = Qty per container
+  - KGS column = Weight
+- **ETD**: From "Date of Issue" field
 
-**AMC has TWO types of Excel files**:
+### STEP 2: Find and parse Invoice Excel in folder
 
-1. **Full Invoice Excel** (like "AMC2026-0301 3.11 8小6大 DOC. (1)(3).xlsx"):
-   - Has header row with: Part/PN | PO | Qty | Unit Price | Amount
-   - Contains WHI PO and pricing info
-   - Parse: Part# → SKU, PO → WHI PO, Unit Price, Amount
+Every folder has an Invoice Excel file (filename varies, but contains pricing):
+- Look for Excel with columns: Part/PN | PO | Qty | Unit Price | Amount
+- May be named like: "AMC2026-0301...xlsx", "Invoice-xxx.xlsx", or any Excel with pricing data
+- Extract: SKU (Part#), WHI PO, Unit Price ($/PCS), Amount
 
-2. **Receipts Excel** (like "receipts.xlsx" or "receipts-11-15.xlsx"):
-   - Only has: Container | Type | PN | Qty | GW
-   - NO WHI PO, NO pricing
-   - Used for Container/Type mapping to SKUs
-   - If only receipts file exists, WHI PO = "" and unitPrice = 0
+### STEP 3: Merge BOL + Invoice data
 
-**IMPORTANT**: When parsing receipts-only folders:
-- Still extract Container, Type, SKU, Qty from receipts
-- WHI PO stays empty (will be filled from PO master later)
-- unitPrice = 0, amount = 0 (pricing unavailable)
-- These are "pending" items that need PO matching
+- Use BOL data for: BL No., Container, Type, ETD
+- Use Invoice data for: SKU, WHI PO, Unit Price, Amount
+- Match by SKU or Qty to link container with pricing
+- Invoice# from folder name: "Invoice-20251115-25111501" → "25111501"
 
-**Container extraction from receipts**:
-- Container format: 4 letters + 7 digits (e.g. EMCU8816472)
-- Type: 20GP / 40GP / 40HQ
-- Each row maps Container + Type + SKU + Qty
+### If no Invoice Excel found (receipts only):
+- Use BOL container data
+- WHI PO from BOL "Marks and Numbers"  
+- Unit Price = 0 (pending)
+- SKU from receipts file if available
 
-**SKU cleanup**: 1260198-A → 1260198, 132383-C → 132383 (strip letter suffix)
+**SKU cleanup**: Strip letter suffix (1260198-A → 1260198)
 
 ## 2. HX-Genie (.xlsx, 6-sheet workbook)
 
@@ -704,12 +700,21 @@ If only BOL data, create rows from container table with whiPo="${whiPoFromBol}".
               messages: [
                 {
                   role: "user",
-                  content: `Parse these Excel files from the same Invoice folder and extract Order Management data as JSON.
-Folder path: ${folderKey}
-Files in folder: ${folderFiles.map(f => f.name).join(", ")}
-IMPORTANT: Use folder path to determine supplier (e.g. AMC folder = AMC supplier)
+                  content: `Parse this AMC shipment folder and extract Order Management data.
+
+FOLDER: ${folderKey}
+FILES: ${folderFiles.map(f => f.name).join(", ")}
 ${blInfoHint}
 
+PROCESSING STEPS:
+1. BOL data above has: BL No., WHI PO (from Marks), Container list, ETD
+2. Find Invoice Excel below with: SKU, Unit Price, Amount  
+3. Merge: Use BOL for shipment info + Invoice for pricing
+4. Output one row per SKU-Container combination
+
+Invoice# should be extracted from folder name (e.g. "Invoice-20251115-25111501" → "25111501")
+
+EXCEL FILE CONTENTS:
 ${combinedExcelContent}`,
                 },
               ],
