@@ -48,8 +48,6 @@ interface MasterRow {
   amount: number
   etd: string
   eta: string
-  _changeType?: "new" | "updated"
-  _existing?: Record<string, unknown>
 }
 
 interface SyncResult {
@@ -58,8 +56,6 @@ interface SyncResult {
   summary: {
     totalFiles: number
     totalNewRows: number
-    totalUpdatedRows?: number
-    totalUnchangedRows?: number
     suppliers: string[]
   }
 }
@@ -338,24 +334,10 @@ export function SyncPODialog() {
                 <FileText className="size-5 text-muted-foreground" />
                 <span className="font-medium">{syncResult.summary.totalFiles} files processed</span>
               </div>
-              {syncResult.summary.totalNewRows > 0 && (
-                <div className="flex items-center gap-2">
-                  <Plus className="size-5 text-green-500" />
-                  <span className="font-medium text-green-600">{syncResult.summary.totalNewRows} new</span>
-                </div>
-              )}
-              {(syncResult.summary.totalUpdatedRows ?? 0) > 0 && (
-                <div className="flex items-center gap-2">
-                  <RefreshCw className="size-4 text-blue-500" />
-                  <span className="font-medium text-blue-600">{syncResult.summary.totalUpdatedRows} updated</span>
-                </div>
-              )}
-              {(syncResult.summary.totalUnchangedRows ?? 0) > 0 && (
-                <div className="flex items-center gap-2">
-                  <Check className="size-4 text-muted-foreground" />
-                  <span className="text-muted-foreground">{syncResult.summary.totalUnchangedRows} unchanged</span>
-                </div>
-              )}
+              <div className="flex items-center gap-2">
+                <Plus className="size-5 text-green-500" />
+                <span className="font-medium text-green-600">{syncResult.summary.totalNewRows} new rows</span>
+              </div>
               <div className="flex flex-wrap gap-1">
                 {syncResult.summary.suppliers.map((supplier) => (
                   <Badge key={supplier} variant="outline">{supplier}</Badge>
@@ -376,7 +358,6 @@ export function SyncPODialog() {
                 <Table className="min-w-[1200px]">
                   <TableHeader className="sticky top-0 bg-background z-10">
                     <TableRow>
-                      <TableHead className="w-[80px] whitespace-nowrap">Status</TableHead>
                       <TableHead className="w-[100px] whitespace-nowrap">WHI PO</TableHead>
                       <TableHead className="whitespace-nowrap">Invoice</TableHead>
                       <TableHead className="whitespace-nowrap">Supplier</TableHead>
@@ -394,16 +375,7 @@ export function SyncPODialog() {
                   </TableHeader>
                   <TableBody>
                     {syncResult.newRows.map((row, index) => (
-                      <TableRow key={index} className={row._changeType === "new" ? "bg-green-50" : row._changeType === "updated" ? "bg-blue-50" : ""}>
-                        <TableCell>
-                          {row._changeType === "new" ? (
-                            <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300">New</Badge>
-                          ) : row._changeType === "updated" ? (
-                            <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-300">Updated</Badge>
-                          ) : (
-                            <Badge variant="outline">-</Badge>
-                          )}
-                        </TableCell>
+                      <TableRow key={index}>
                         <TableCell className="font-mono text-sm">{row.whiPo}</TableCell>
                         <TableCell className="font-mono text-sm">{row.supplierInvoice}</TableCell>
                         <TableCell>{row.supplier}</TableCell>
@@ -424,11 +396,8 @@ export function SyncPODialog() {
               </div>
             ) : (
               <div className="flex flex-col items-center gap-2 py-8 text-muted-foreground">
-                <Check className="size-8 text-green-500" />
-                <p className="font-medium">All data is up to date!</p>
-                <p className="text-sm">
-                  {syncResult.summary.totalUnchangedRows ?? 0} existing rows matched with no changes needed.
-                </p>
+                <Check className="size-8" />
+                <p>No new data to add. Master table is up to date.</p>
               </div>
             )}
 
@@ -464,7 +433,7 @@ export function SyncPODialog() {
             <div className="text-center">
               <p className="text-lg font-semibold">Sync Complete!</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                {syncResult?.summary.totalNewRows ?? 0} new rows added, {syncResult?.summary.totalUpdatedRows ?? 0} rows updated.
+                {syncResult?.summary.totalNewRows} new rows have been added to the master table.
               </p>
             </div>
             <div className="flex gap-2">
