@@ -132,12 +132,26 @@ Every folder has an Invoice Excel file (filename varies, but contains pricing):
 | 40G, 40GP | **40GP** |
 | 40HQ, 40HC, 40'HQ | **40HQ** |
 
+## FORMAT RULES
+
+**WHI PO Format**: Convert raw PO number to "PO-XXX" format
+- Remove leading zeros, add "PO-" prefix
+- "0000728" → "PO-728"
+- "0000700" → "PO-700"
+- "0000718" → "PO-718"
+
+**SKU Format**: Extract numeric part only, add GT suffix
+- "1260198" → "1260198GT"
+- "1260198-A" → "1260198GT" (strip letter suffix, add GT)
+- "132517GT" → "132517GT" (already has GT)
+- "132383-C" → "132383GT"
+
 ## Output JSON (use camelCase for frontend display)
 
 {
   "rows": [
     {
-      "whiPo": "0000728",
+      "whiPo": "PO-728",
       "supplierInvoice": "25111501",
       "supplier": "AMC",
       "customer": "Genie",
@@ -145,7 +159,7 @@ Every folder has an Invoice Excel file (filename varies, but contains pricing):
       "containerType": "40HQ",
       "blNo": "FSHA03260325",
       "vessel": "",
-      "sku": "1260198",
+      "sku": "1260198GT",
       "description": "",
       "qty": 120,
       "unitPrice": 5.50,
@@ -161,22 +175,25 @@ DATA SOURCE PRIORITY (where to get each field):
 
 | Field | Primary Source | Secondary Source |
 |-------|---------------|------------------|
-| whiPo | BOL PDF → "Marks and Numbers" | Invoice Excel → PO column |
-| supplierInvoice | Folder name (Invoice-xxx-{invoiceNo}) | Invoice Excel header |
+| whiPo | BOL PDF → "Marks and Numbers" → format as "PO-XXX" | Invoice PDF/Excel → PO column |
+| supplierInvoice | Folder name (Invoice-xxx-{invoiceNo}) | Invoice file header |
 | supplier | Folder path (AMC/HX/TJJSH) | - |
 | customer | Based on supplier | - |
 | containerNo | BOL PDF → Container table | Receipts Excel |
 | containerType | BOL PDF → Container table (20'/40H) | Receipts Excel |
 | blNo | BOL PDF → "B/L No." field | - |
 | vessel | BOL PDF → "Vessel" field | - |
-| sku | Invoice Excel → Part/PN column | Receipts Excel |
-| qty | Invoice Excel → Qty column | BOL PDF → PKG column |
-| unitPrice | Invoice Excel → Unit Price column | $0 if not found |
-| amount | Invoice Excel → Amount column | qty × unitPrice |
+| sku | Invoice PDF/Excel → Part number → add GT suffix | Receipts Excel |
+| qty | Invoice PDF/Excel → Qty column | BOL PDF → PKG column |
+| unitPrice | Invoice PDF/Excel → Unit Price column | $0 if not found |
+| amount | Invoice PDF/Excel → Amount column | qty × unitPrice |
 | etd | BOL PDF → "Date of Issue" | Invoice date |
 | eta | ETD + 30 days | - |
 
-IMPORTANT: Always try to extract from BOL PDF first for shipping info (BL, Container, Type, ETD), then merge with Invoice Excel for pricing info (SKU, Unit Price, Amount).
+IMPORTANT: 
+1. Extract shipping info from BOL PDF (BL, Container, Type, ETD, WHI PO from Marks)
+2. Extract pricing info from Invoice PDF or Excel (SKU, Unit Price, Amount, Qty)
+3. Apply format rules: whiPo = "PO-XXX", sku = "{number}GT"
 
 If file is not a valid PO/Invoice:
 {"skip": true, "reason": "description"}
