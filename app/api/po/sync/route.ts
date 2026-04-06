@@ -132,23 +132,23 @@ Every folder has an Invoice Excel file (filename varies, but contains pricing):
 | 40G, 40GP | **40GP** |
 | 40HQ, 40HC, 40'HQ | **40HQ** |
 
-## Output JSON (matches master_orders DB table)
+## Output JSON (use camelCase for frontend display)
 
 {
   "rows": [
     {
-      "whi_po": "0000728",
-      "supplier_invoice": "25111501",
+      "whiPo": "0000728",
+      "supplierInvoice": "25111501",
       "supplier": "AMC",
       "customer": "Genie",
-      "container_no": "MSOU7576033",
-      "container_type": "40HQ",
-      "bl_no": "FSHA03260325",
+      "containerNo": "MSOU7576033",
+      "containerType": "40HQ",
+      "blNo": "FSHA03260325",
       "vessel": "",
       "sku": "1260198",
       "description": "",
       "qty": 120,
-      "unit_price": 5.50,
+      "unitPrice": 5.50,
       "amount": 660.00,
       "etd": "2026-03-01",
       "eta": "2026-03-31"
@@ -157,22 +157,26 @@ Every folder has an Invoice Excel file (filename varies, but contains pricing):
   "supplier": "AMC"
 }
 
-FIELD MAPPING (use snake_case for DB compatibility):
-- whi_po: WHI PO number from BOL "Marks and Numbers" or Invoice
-- supplier_invoice: Invoice number from folder name or file
-- supplier: AMC / HX / TJJSH
-- customer: Genie / Clark / Deere
-- container_no: Container number (4 letters + 7 digits)
-- container_type: 20GP / 40GP / 40HQ
-- bl_no: B/L number from BOL PDF
-- vessel: Vessel name if available
-- sku: Part number (cleaned, no letter suffix for AMC)
-- description: Part description if available
-- qty: Quantity (integer)
-- unit_price: $/PCS (decimal)
-- amount: Total amount (decimal)
-- etd: Estimated departure date (YYYY-MM-DD)
-- eta: Estimated arrival date (YYYY-MM-DD, typically ETD + 30 days)
+DATA SOURCE PRIORITY (where to get each field):
+
+| Field | Primary Source | Secondary Source |
+|-------|---------------|------------------|
+| whiPo | BOL PDF → "Marks and Numbers" | Invoice Excel → PO column |
+| supplierInvoice | Folder name (Invoice-xxx-{invoiceNo}) | Invoice Excel header |
+| supplier | Folder path (AMC/HX/TJJSH) | - |
+| customer | Based on supplier | - |
+| containerNo | BOL PDF → Container table | Receipts Excel |
+| containerType | BOL PDF → Container table (20'/40H) | Receipts Excel |
+| blNo | BOL PDF → "B/L No." field | - |
+| vessel | BOL PDF → "Vessel" field | - |
+| sku | Invoice Excel → Part/PN column | Receipts Excel |
+| qty | Invoice Excel → Qty column | BOL PDF → PKG column |
+| unitPrice | Invoice Excel → Unit Price column | $0 if not found |
+| amount | Invoice Excel → Amount column | qty × unitPrice |
+| etd | BOL PDF → "Date of Issue" | Invoice date |
+| eta | ETD + 30 days | - |
+
+IMPORTANT: Always try to extract from BOL PDF first for shipping info (BL, Container, Type, ETD), then merge with Invoice Excel for pricing info (SKU, Unit Price, Amount).
 
 If file is not a valid PO/Invoice:
 {"skip": true, "reason": "description"}
