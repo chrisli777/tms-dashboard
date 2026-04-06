@@ -29,13 +29,13 @@
   --chart-4: #f97316;
   --chart-5: #8b5cf6;
   --radius: 0.5rem;
-  --sidebar: #1e3a5f;
-  --sidebar-foreground: #e2e8f0;
+  --sidebar: #0f172a;
+  --sidebar-foreground: #cbd5e1;
   --sidebar-primary: #3b82f6;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #2d4a6f;
-  --sidebar-accent-foreground: #f1f5f9;
-  --sidebar-border: #2d4a6f;
+  --sidebar-accent: #334155;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #334155;
   --sidebar-ring: #3b82f6;
   --success: #16a34a;
   --success-foreground: #ffffff;
