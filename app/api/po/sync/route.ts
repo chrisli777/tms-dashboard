@@ -648,13 +648,19 @@ export async function POST() {
               console.log("[v0] Extracted BL# from BOL:", blNo)
             }
             
-            // 2. Extract WHI PO from "Marks and Numbers" section
-            // Format: "0000718,8803AMC-0000720" or just "0000720"
-            const marksMatch = content.match(/Marks\s*and\s*Numbers[\s\S]{0,100}?(\d{7})/i) ||
-                              content.match(/(\d{7}),\d{4}AMC-(\d{7})/i)
-            if (marksMatch && !whiPoFromBol) {
-              whiPoFromBol = marksMatch[1]
-              console.log("[v0] Extracted WHI PO from BOL Marks:", whiPoFromBol)
+            // 2. Extract WHI PO from "Marks and Numbers" section or standalone 7-digit number
+            // Formats: "0000700", "0000718,8803AMC-0000720", etc.
+            // Look for 7-digit number starting with 0000 (typical WHI PO format)
+            const poMatch = content.match(/\b(0{3,4}\d{3,4})\b/g) // Match patterns like 0000700, 0000718
+            if (poMatch && poMatch.length > 0 && !whiPoFromBol) {
+              // Find first 7-digit PO number
+              for (const po of poMatch) {
+                if (po.length === 7 && po.startsWith("000")) {
+                  whiPoFromBol = po
+                  console.log("[v0] Extracted WHI PO from BOL:", whiPoFromBol)
+                  break
+                }
+              }
             }
             
             // 3. Extract Date of Issue as ETD
@@ -695,8 +701,17 @@ export async function POST() {
           let combinedExcelContent = ""
           for (const excelFile of excelFiles) {
             const lines = excelFile.content.split("\n")
-            combinedExcelContent += `\n\n=== File: ${excelFile.name} ===\n`
+            combinedExcelContent += `\n\n=== Excel File: ${excelFile.name} ===\n`
             combinedExcelContent += lines.slice(0, 600).join("\n")
+          }
+          
+          // Also include PDF Invoice content (not just BOL) for pricing data
+          let combinedPdfContent = ""
+          for (const pdfFile of pdfFiles) {
+            // Include all PDF content - Invoice PDFs have pricing, BOL PDFs have shipping info
+            const lines = pdfFile.content.split("\n")
+            combinedPdfContent += `\n\n=== PDF File: ${pdfFile.name} ===\n`
+            combinedPdfContent += lines.slice(0, 400).join("\n")
           }
           
           // Build comprehensive BOL info hint with container details
@@ -732,12 +747,16 @@ FILES: ${folderFiles.map(f => f.name).join(", ")}
 ${blInfoHint}
 
 PROCESSING STEPS:
-1. BOL data above has: BL No., WHI PO (from Marks), Container list, ETD
-2. Find Invoice Excel below with: SKU, Unit Price, Amount  
-3. Merge: Use BOL for shipment info + Invoice for pricing
-4. Output one row per SKU-Container combination
+1. BOL PDF has: BL No., WHI PO (from Marks and Numbers field - look for 7-digit number like "0000700"), Container list, ETD
+2. Invoice PDF has: PO number, Part number (SKU), Quantity, Unit Price, Amount - USE THIS FOR PRICING!
+3. Invoice Excel (if exists) also has: SKU, Unit Price, Amount
+4. Merge: Use BOL for shipment info + Invoice (PDF or Excel) for pricing
+5. Output one row per SKU-Container combination
 
 Invoice# should be extracted from folder name (e.g. "Invoice-20251115-25111501" → "25111501")
+
+PDF FILE CONTENTS (includes BOL and Invoice PDFs):
+${combinedPdfContent}
 
 EXCEL FILE CONTENTS:
 ${combinedExcelContent}`,
