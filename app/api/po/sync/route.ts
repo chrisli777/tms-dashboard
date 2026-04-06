@@ -132,12 +132,26 @@ Every folder has an Invoice Excel file (filename varies, but contains pricing):
 | 40G, 40GP | **40GP** |
 | 40HQ, 40HC, 40'HQ | **40HQ** |
 
+## FORMAT RULES
+
+**WHI PO Format**: Convert raw PO number to "PO-XXX" format
+- Remove leading zeros, add "PO-" prefix
+- "0000728" → "PO-728"
+- "0000700" → "PO-700"
+- "0000718" → "PO-718"
+
+**SKU Format**: Extract numeric part only, add GT suffix
+- "1260198" → "1260198GT"
+- "1260198-A" → "1260198GT" (strip letter suffix, add GT)
+- "132517GT" → "132517GT" (already has GT)
+- "132383-C" → "132383GT"
+
 ## Output JSON (use camelCase for frontend display)
 
 {
   "rows": [
     {
-      "whiPo": "0000728",
+      "whiPo": "PO-728",
       "supplierInvoice": "25111501",
       "supplier": "AMC",
       "customer": "Genie",
@@ -145,7 +159,7 @@ Every folder has an Invoice Excel file (filename varies, but contains pricing):
       "containerType": "40HQ",
       "blNo": "FSHA03260325",
       "vessel": "",
-      "sku": "1260198",
+      "sku": "1260198GT",
       "description": "",
       "qty": 120,
       "unitPrice": 5.50,
@@ -161,22 +175,25 @@ DATA SOURCE PRIORITY (where to get each field):
 
 | Field | Primary Source | Secondary Source |
 |-------|---------------|------------------|
-| whiPo | BOL PDF → "Marks and Numbers" | Invoice Excel → PO column |
-| supplierInvoice | Folder name (Invoice-xxx-{invoiceNo}) | Invoice Excel header |
+| whiPo | BOL PDF → "Marks and Numbers" → format as "PO-XXX" | Invoice PDF/Excel → PO column |
+| supplierInvoice | Folder name (Invoice-xxx-{invoiceNo}) | Invoice file header |
 | supplier | Folder path (AMC/HX/TJJSH) | - |
 | customer | Based on supplier | - |
 | containerNo | BOL PDF → Container table | Receipts Excel |
 | containerType | BOL PDF → Container table (20'/40H) | Receipts Excel |
 | blNo | BOL PDF → "B/L No." field | - |
 | vessel | BOL PDF → "Vessel" field | - |
-| sku | Invoice Excel → Part/PN column | Receipts Excel |
-| qty | Invoice Excel → Qty column | BOL PDF → PKG column |
-| unitPrice | Invoice Excel → Unit Price column | $0 if not found |
-| amount | Invoice Excel → Amount column | qty × unitPrice |
+| sku | Invoice PDF/Excel → Part number → add GT suffix | Receipts Excel |
+| qty | Invoice PDF/Excel → Qty column | BOL PDF → PKG column |
+| unitPrice | Invoice PDF/Excel → Unit Price column | $0 if not found |
+| amount | Invoice PDF/Excel → Amount column | qty × unitPrice |
 | etd | BOL PDF → "Date of Issue" | Invoice date |
 | eta | ETD + 30 days | - |
 
-IMPORTANT: Always try to extract from BOL PDF first for shipping info (BL, Container, Type, ETD), then merge with Invoice Excel for pricing info (SKU, Unit Price, Amount).
+IMPORTANT: 
+1. Extract shipping info from BOL PDF (BL, Container, Type, ETD, WHI PO from Marks)
+2. Extract pricing info from Invoice PDF or Excel (SKU, Unit Price, Amount, Qty)
+3. Apply format rules: whiPo = "PO-XXX", sku = "{number}GT"
 
 If file is not a valid PO/Invoice:
 {"skip": true, "reason": "description"}
@@ -648,13 +665,19 @@ export async function POST() {
               console.log("[v0] Extracted BL# from BOL:", blNo)
             }
             
-            // 2. Extract WHI PO from "Marks and Numbers" section
-            // Format: "0000718,8803AMC-0000720" or just "0000720"
-            const marksMatch = content.match(/Marks\s*and\s*Numbers[\s\S]{0,100}?(\d{7})/i) ||
-                              content.match(/(\d{7}),\d{4}AMC-(\d{7})/i)
-            if (marksMatch && !whiPoFromBol) {
-              whiPoFromBol = marksMatch[1]
-              console.log("[v0] Extracted WHI PO from BOL Marks:", whiPoFromBol)
+            // 2. Extract WHI PO from "Marks and Numbers" section or standalone 7-digit number
+            // Formats: "0000700", "0000718,8803AMC-0000720", etc.
+            // Look for 7-digit number starting with 0000 (typical WHI PO format)
+            const poMatch = content.match(/\b(0{3,4}\d{3,4})\b/g) // Match patterns like 0000700, 0000718
+            if (poMatch && poMatch.length > 0 && !whiPoFromBol) {
+              // Find first 7-digit PO number
+              for (const po of poMatch) {
+                if (po.length === 7 && po.startsWith("000")) {
+                  whiPoFromBol = po
+                  console.log("[v0] Extracted WHI PO from BOL:", whiPoFromBol)
+                  break
+                }
+              }
             }
             
             // 3. Extract Date of Issue as ETD
@@ -695,8 +718,17 @@ export async function POST() {
           let combinedExcelContent = ""
           for (const excelFile of excelFiles) {
             const lines = excelFile.content.split("\n")
-            combinedExcelContent += `\n\n=== File: ${excelFile.name} ===\n`
+            combinedExcelContent += `\n\n=== Excel File: ${excelFile.name} ===\n`
             combinedExcelContent += lines.slice(0, 600).join("\n")
+          }
+          
+          // Also include PDF Invoice content (not just BOL) for pricing data
+          let combinedPdfContent = ""
+          for (const pdfFile of pdfFiles) {
+            // Include all PDF content - Invoice PDFs have pricing, BOL PDFs have shipping info
+            const lines = pdfFile.content.split("\n")
+            combinedPdfContent += `\n\n=== PDF File: ${pdfFile.name} ===\n`
+            combinedPdfContent += lines.slice(0, 400).join("\n")
           }
           
           // Build comprehensive BOL info hint with container details
@@ -732,12 +764,16 @@ FILES: ${folderFiles.map(f => f.name).join(", ")}
 ${blInfoHint}
 
 PROCESSING STEPS:
-1. BOL data above has: BL No., WHI PO (from Marks), Container list, ETD
-2. Find Invoice Excel below with: SKU, Unit Price, Amount  
-3. Merge: Use BOL for shipment info + Invoice for pricing
-4. Output one row per SKU-Container combination
+1. BOL PDF has: BL No., WHI PO (from Marks and Numbers field - look for 7-digit number like "0000700"), Container list, ETD
+2. Invoice PDF has: PO number, Part number (SKU), Quantity, Unit Price, Amount - USE THIS FOR PRICING!
+3. Invoice Excel (if exists) also has: SKU, Unit Price, Amount
+4. Merge: Use BOL for shipment info + Invoice (PDF or Excel) for pricing
+5. Output one row per SKU-Container combination
 
 Invoice# should be extracted from folder name (e.g. "Invoice-20251115-25111501" → "25111501")
+
+PDF FILE CONTENTS (includes BOL and Invoice PDFs):
+${combinedPdfContent}
 
 EXCEL FILE CONTENTS:
 ${combinedExcelContent}`,
