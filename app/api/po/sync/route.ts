@@ -3,6 +3,13 @@ import Anthropic from "@anthropic-ai/sdk"
 import { getValidAccessToken } from "@/lib/microsoft-auth"
 import * as XLSX from "xlsx"
 import pdf from "pdf-parse"
+import { createClient } from "@supabase/supabase-js"
+
+// Supabase client for comparing with existing data
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
 // Initialize Anthropic client
 const anthropic = new Anthropic({
@@ -903,17 +910,72 @@ ${combinedExcelContent}`,
         
         console.log("[v0] Deduplication: ", allRows.length, "->", deduplicatedRows.length)
         
+        send("progress", { step: "compare", message: "Comparing with existing data...", percent: 96 })
+        
+        // Compare with existing data in database
+        const { data: existingRows, error: dbError } = await supabase
+          .from("master_orders")
+          .select("whi_po, supplier_invoice, container_no, sku, qty, unit_price, amount, bl_no, container_type, etd, eta")
+        
+        if (dbError) {
+          console.error("[v0] DB query error:", dbError)
+        }
+        
+        // Build lookup map for existing data
+        const existingMap = new Map<string, Record<string, unknown>>()
+        if (existingRows) {
+          for (const row of existingRows) {
+            // Key: whi_po + supplier_invoice + container_no + sku
+            const key = `${row.whi_po || ""}-${row.supplier_invoice || ""}-${row.container_no || ""}-${row.sku || ""}`
+            existingMap.set(key, row)
+          }
+        }
+        
+        // Categorize rows: new, updated, or unchanged
+        const changedRows: Array<Record<string, unknown> & { _changeType: "new" | "updated" }> = []
+        const unchangedCount = { count: 0 }
+        
+        for (const row of deduplicatedRows) {
+          const key = `${row.whiPo || ""}-${row.supplierInvoice || ""}-${row.containerNo || ""}-${row.sku || ""}`
+          const existing = existingMap.get(key)
+          
+          if (!existing) {
+            // New row
+            changedRows.push({ ...row, _changeType: "new" })
+          } else {
+            // Check if any field changed
+            const hasChanges = 
+              Number(existing.qty) !== Number(row.qty) ||
+              Number(existing.unit_price) !== Number(row.unitPrice) ||
+              Number(existing.amount) !== Number(row.amount) ||
+              existing.bl_no !== row.blNo ||
+              existing.container_type !== row.containerType ||
+              existing.etd !== row.etd ||
+              existing.eta !== row.eta
+            
+            if (hasChanges) {
+              changedRows.push({ ...row, _changeType: "updated", _existing: existing })
+            } else {
+              unchangedCount.count++
+            }
+          }
+        }
+        
+        console.log("[v0] Comparison result: ", changedRows.length, "changed,", unchangedCount.count, "unchanged")
+        
         send("progress", { step: "complete", message: "Sync complete!", percent: 100 })
 
         send("complete", {
-          newRows: deduplicatedRows,
+          newRows: changedRows,
           filesProcessed: processedFiles,
           summary: {
             totalFiles: fileContents.length,
-            totalNewRows: deduplicatedRows.length,
+            totalNewRows: changedRows.filter(r => r._changeType === "new").length,
+            totalUpdatedRows: changedRows.filter(r => r._changeType === "updated").length,
+            totalUnchangedRows: unchangedCount.count,
             suppliers: Array.from(suppliers),
           },
-          debug: `Processed ${processedFiles.length} of ${fileContents.length} files, deduplicated ${allRows.length} -> ${deduplicatedRows.length}`,
+          debug: `Processed ${processedFiles.length} folders, ${changedRows.length} changes (${unchangedCount.count} unchanged)`,
         })
         
         controller.close()
