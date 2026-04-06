@@ -132,30 +132,47 @@ Every folder has an Invoice Excel file (filename varies, but contains pricing):
 | 40G, 40GP | **40GP** |
 | 40HQ, 40HC, 40'HQ | **40HQ** |
 
-## Output JSON
+## Output JSON (matches master_orders DB table)
 
 {
   "rows": [
     {
+      "whi_po": "0000728",
+      "supplier_invoice": "25111501",
       "supplier": "AMC",
       "customer": "Genie",
-      "supplierInvoice": "25111501",
-      "blNo": "142503419969",
-      "whiPo": "0000728",
-      "containerNo": "MSOU7576033",
-      "containerType": "40HQ",
+      "container_no": "MSOU7576033",
+      "container_type": "40HQ",
+      "bl_no": "FSHA03260325",
+      "vessel": "",
       "sku": "1260198",
+      "description": "",
       "qty": 120,
-      "gw": 1500,
-      "unitPrice": 5.50,
+      "unit_price": 5.50,
       "amount": 660.00,
       "etd": "2026-03-01",
-      "eta": "2026-03-31",
-      "status": "In Transit"
+      "eta": "2026-03-31"
     }
   ],
   "supplier": "AMC"
 }
+
+FIELD MAPPING (use snake_case for DB compatibility):
+- whi_po: WHI PO number from BOL "Marks and Numbers" or Invoice
+- supplier_invoice: Invoice number from folder name or file
+- supplier: AMC / HX / TJJSH
+- customer: Genie / Clark / Deere
+- container_no: Container number (4 letters + 7 digits)
+- container_type: 20GP / 40GP / 40HQ
+- bl_no: B/L number from BOL PDF
+- vessel: Vessel name if available
+- sku: Part number (cleaned, no letter suffix for AMC)
+- description: Part description if available
+- qty: Quantity (integer)
+- unit_price: $/PCS (decimal)
+- amount: Total amount (decimal)
+- etd: Estimated departure date (YYYY-MM-DD)
+- eta: Estimated arrival date (YYYY-MM-DD, typically ETD + 30 days)
 
 If file is not a valid PO/Invoice:
 {"skip": true, "reason": "description"}
@@ -179,9 +196,13 @@ interface OneDriveFolder {
 // Check if a folder name is a supplier folder we should scan
 function isSupplierFolder(folderName: string): boolean {
   const name = folderName.toLowerCase()
-  // Only scan exact supplier folders, not folders that just contain supplier names
-  // e.g. "AMC" yes, "AMC PIPELINE WEEK 5" no
+  // Scan supplier folders: AMC, HX, TJJSH (and their variants)
+  // AMC: exact match only (exclude "AMC PIPELINE WEEK 5" etc)
+  // HX: "hx" or "terex" or "clark"
+  // TJJSH: "tjjsh" or "tjlt"
   return name === "amc" || 
+         name === "hx" ||
+         name === "tjjsh" ||
          name.startsWith("terex") || 
          name.startsWith("clark") || 
          name.startsWith("tjlt")
@@ -455,8 +476,8 @@ function parseExcelToText(buffer: ArrayBuffer, filename: string): string {
 
     result.push(`\n=== Sheet: ${sheetName} ===`)
 
-    // Include more rows (up to 300) to ensure container data is captured
-    const maxRows = Math.min(data.length, 300)
+    // Include more rows (up to 500) to ensure all invoice/container data is captured
+    const maxRows = Math.min(data.length, 500)
     for (let i = 0; i < maxRows; i++) {
       const row = data[i]
       if (Array.isArray(row) && row.some(cell => cell !== "")) {
@@ -671,7 +692,7 @@ export async function POST() {
           for (const excelFile of excelFiles) {
             const lines = excelFile.content.split("\n")
             combinedExcelContent += `\n\n=== File: ${excelFile.name} ===\n`
-            combinedExcelContent += lines.slice(0, 400).join("\n")
+            combinedExcelContent += lines.slice(0, 600).join("\n")
           }
           
           // Build comprehensive BOL info hint with container details
