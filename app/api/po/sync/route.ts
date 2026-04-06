@@ -44,29 +44,44 @@ Example: File "Invoice-20251115.xlsx" in folder "AMC/Invoice-20251115-25111501" 
 | ETA | date | ETD + 30 days if unavailable |
 | Status | string | Cleared / In Transit / Pending |
 
-## 1. AMC (Excel Invoice in AMC folder)
+## 1. AMC Folder Processing
 
 **Folder path**: AMC/Invoice-{date}-{invoiceNo}/ or AMC/{invoiceNo}/
 **supplier="AMC", customer="Genie"**
 
-**Invoice# extraction**:
-- From folder name: "Invoice-20251115-25111501" → Invoice = "25111501"
-- From folder name: "AMC2026-0301 3.11 8小6大 DOC" → Invoice = "AMC2026-0301"
+### STEP 1: Parse BOL PDF first (provides key shipment info)
 
-**BL# extraction from folder path**:
-- Look for folder starting with "BL" in path: "BL142503419969" → blNo = "142503419969"
-- Or extract from ISF/Packing list filename if contains BL number
+BOL PDF contains:
+- **B/L No.**: From "B/L No." field (e.g. "FSHA01261586")
+- **WHI PO**: From "Marks and Numbers" field (e.g. "0000718,8803AMC-0000720" → extract "0000718" or "0000720")
+- **Container table**: 
+  - Format: "VPLU3220052 /EMCQDC5764/20'" = Container: VPLU3220052, Type: 20GP
+  - Format: "GCXU6428302 /EMCWKS7294/40H" = Container: GCXU6428302, Type: 40HQ
+  - PKG column = Qty per container
+  - KGS column = Weight
+- **ETD**: From "Date of Issue" field
 
-**Container extraction**:
-- Look for "receipts" or "Receipts" Excel file in same folder
-- Receipts sheet has: Container | Type | PN | Qty | GW
-- Container format: 4 letters + 7 digits (e.g. MSOU7576033)
-- If no receipts file, check folder name for container hints
+### STEP 2: Find and parse Invoice Excel in folder
 
-**Invoice Excel parsing**:
-- Find header row with "Part" or "PN" AND "Qty"
-- Columns: Part# → SKU (strip -A/-B/-C suffix), PO → WHI PO, Qty, Unit Price, Amount
-- SKU cleanup: 1260198-A → 1260198, 132383-C → 132383
+Every folder has an Invoice Excel file (filename varies, but contains pricing):
+- Look for Excel with columns: Part/PN | PO | Qty | Unit Price | Amount
+- May be named like: "AMC2026-0301...xlsx", "Invoice-xxx.xlsx", or any Excel with pricing data
+- Extract: SKU (Part#), WHI PO, Unit Price ($/PCS), Amount
+
+### STEP 3: Merge BOL + Invoice data
+
+- Use BOL data for: BL No., Container, Type, ETD
+- Use Invoice data for: SKU, WHI PO, Unit Price, Amount
+- Match by SKU or Qty to link container with pricing
+- Invoice# from folder name: "Invoice-20251115-25111501" → "25111501"
+
+### If no Invoice Excel found (receipts only):
+- Use BOL container data
+- WHI PO from BOL "Marks and Numbers"  
+- Unit Price = 0 (pending)
+- SKU from receipts file if available
+
+**SKU cleanup**: Strip letter suffix (1260198-A → 1260198)
 
 ## 2. HX-Genie (.xlsx, 6-sheet workbook)
 
@@ -117,30 +132,47 @@ Example: File "Invoice-20251115.xlsx" in folder "AMC/Invoice-20251115-25111501" 
 | 40G, 40GP | **40GP** |
 | 40HQ, 40HC, 40'HQ | **40HQ** |
 
-## Output JSON
+## Output JSON (matches master_orders DB table)
 
 {
   "rows": [
     {
+      "whi_po": "0000728",
+      "supplier_invoice": "25111501",
       "supplier": "AMC",
       "customer": "Genie",
-      "supplierInvoice": "25111501",
-      "blNo": "142503419969",
-      "whiPo": "0000728",
-      "containerNo": "MSOU7576033",
-      "containerType": "40HQ",
+      "container_no": "MSOU7576033",
+      "container_type": "40HQ",
+      "bl_no": "FSHA03260325",
+      "vessel": "",
       "sku": "1260198",
+      "description": "",
       "qty": 120,
-      "gw": 1500,
-      "unitPrice": 5.50,
+      "unit_price": 5.50,
       "amount": 660.00,
       "etd": "2026-03-01",
-      "eta": "2026-03-31",
-      "status": "In Transit"
+      "eta": "2026-03-31"
     }
   ],
   "supplier": "AMC"
 }
+
+FIELD MAPPING (use snake_case for DB compatibility):
+- whi_po: WHI PO number from BOL "Marks and Numbers" or Invoice
+- supplier_invoice: Invoice number from folder name or file
+- supplier: AMC / HX / TJJSH
+- customer: Genie / Clark / Deere
+- container_no: Container number (4 letters + 7 digits)
+- container_type: 20GP / 40GP / 40HQ
+- bl_no: B/L number from BOL PDF
+- vessel: Vessel name if available
+- sku: Part number (cleaned, no letter suffix for AMC)
+- description: Part description if available
+- qty: Quantity (integer)
+- unit_price: $/PCS (decimal)
+- amount: Total amount (decimal)
+- etd: Estimated departure date (YYYY-MM-DD)
+- eta: Estimated arrival date (YYYY-MM-DD, typically ETD + 30 days)
 
 If file is not a valid PO/Invoice:
 {"skip": true, "reason": "description"}
@@ -164,9 +196,13 @@ interface OneDriveFolder {
 // Check if a folder name is a supplier folder we should scan
 function isSupplierFolder(folderName: string): boolean {
   const name = folderName.toLowerCase()
-  // Only scan exact supplier folders, not folders that just contain supplier names
-  // e.g. "AMC" yes, "AMC PIPELINE WEEK 5" no
+  // Scan supplier folders: AMC, HX, TJJSH (and their variants)
+  // AMC: exact match only (exclude "AMC PIPELINE WEEK 5" etc)
+  // HX: "hx" or "terex" or "clark"
+  // TJJSH: "tjjsh" or "tjlt"
   return name === "amc" || 
+         name === "hx" ||
+         name === "tjjsh" ||
          name.startsWith("terex") || 
          name.startsWith("clark") || 
          name.startsWith("tjlt")
@@ -440,8 +476,8 @@ function parseExcelToText(buffer: ArrayBuffer, filename: string): string {
 
     result.push(`\n=== Sheet: ${sheetName} ===`)
 
-    // Include more rows (up to 300) to ensure container data is captured
-    const maxRows = Math.min(data.length, 300)
+    // Include more rows (up to 500) to ensure all invoice/container data is captured
+    const maxRows = Math.min(data.length, 500)
     for (let i = 0; i < maxRows; i++) {
       const row = data[i]
       if (Array.isArray(row) && row.some(cell => cell !== "")) {
@@ -592,33 +628,62 @@ export async function POST() {
             percent: 55 + Math.round((processedCount / Math.max(folderKeys.length, 1)) * 40)
           })
           
-          // Extract BL info from PDFs in this folder
+          // Extract FULL BOL info from PDFs in this folder
           let blNo = ""
-          let containerNo = ""
+          let whiPoFromBol = ""
           let etd = ""
+          const containerList: Array<{ container: string; type: string; qty: number; kgs: number }> = []
           
           for (const pdfFile of pdfFiles) {
-            // Look for B/L No. pattern - prioritize "B/L No." field (like FSHA03260325) over MBL
-            const blNoMatch = pdfFile.content.match(/B\/L\s*No\.?\s*[:\s]*([A-Z]{4}\d{8,12})/i)
-            const hblMatch = pdfFile.content.match(/HBL\s*[:\s#]*([A-Z0-9]{10,20})/i)
-            const mblMatch = pdfFile.content.match(/MBL\s*[:\s#]*([A-Z0-9]{10,20})/i)
-            const blMatch = blNoMatch || hblMatch || mblMatch
+            const content = pdfFile.content
             
-            if (blMatch && blMatch[1] && !blNo) {
-              blNo = blMatch[1]
-              console.log("[v0] Extracted BL# from PDF:", blNo, "in folder:", folderKey)
+            // 1. Extract B/L No. (like FSHA01261586)
+            const blNoMatch = content.match(/B\/L\s*No\.?\s*[:\s]*([A-Z]{4}\d{8,12})/i)
+            if (blNoMatch && blNoMatch[1] && !blNo) {
+              blNo = blNoMatch[1]
+              console.log("[v0] Extracted BL# from BOL:", blNo)
             }
             
-            // Container number (4 letters + 7 digits)
-            const containerMatch = pdfFile.content.match(/([A-Z]{4}\d{7})/g)
-            if (containerMatch && containerMatch[0] && !containerNo) {
-              containerNo = containerMatch[0]
+            // 2. Extract WHI PO from "Marks and Numbers" section
+            // Format: "0000718,8803AMC-0000720" or just "0000720"
+            const marksMatch = content.match(/Marks\s*and\s*Numbers[\s\S]{0,100}?(\d{7})/i) ||
+                              content.match(/(\d{7}),\d{4}AMC-(\d{7})/i)
+            if (marksMatch && !whiPoFromBol) {
+              whiPoFromBol = marksMatch[1]
+              console.log("[v0] Extracted WHI PO from BOL Marks:", whiPoFromBol)
             }
             
-            // ETD/On Board Date
-            const etdMatch = pdfFile.content.match(/(?:On Board Date|ETD|Departure)[:\s]*(\d{1,2}[-\/]\w{3}[-\/]\d{2,4}|\d{4}[-\/]\d{2}[-\/]\d{2})/i)
-            if (etdMatch && etdMatch[1] && !etd) {
-              etd = etdMatch[1]
+            // 3. Extract Date of Issue as ETD
+            const dateMatch = content.match(/Date\s*of\s*Issue[\s\S]{0,30}?(\d{1,2}[-\/]\w{3}[-\/]\d{2,4})/i)
+            if (dateMatch && dateMatch[1] && !etd) {
+              etd = dateMatch[1]
+              console.log("[v0] Extracted ETD from BOL:", etd)
+            }
+            
+            // 4. Extract Container table from BOL
+            // Format: "VPLU3220052 /EMCQDC5764/20'" or "GCXU6428302 /EMCWKS7294/40H"
+            // Followed by PKG (qty), CY-CY, KGS, CBM
+            const containerLines = content.match(/([A-Z]{4}\d{7})\s*\/[A-Z0-9]+\/(20'?|40H)\s+(\d+)\s+CY-CY\s+([\d.]+)/gi)
+            
+            if (containerLines && containerLines.length > 0) {
+              console.log("[v0] Found", containerLines.length, "container lines in BOL")
+              
+              for (const line of containerLines) {
+                const match = line.match(/([A-Z]{4}\d{7})\s*\/[A-Z0-9]+\/(20'?|40H)\s+(\d+)\s+CY-CY\s+([\d.]+)/i)
+                if (match) {
+                  const containerNo = match[1]
+                  let containerType = match[2]
+                  // Normalize type: 20' -> 20GP, 40H -> 40HQ
+                  if (containerType === "20'" || containerType === "20") containerType = "20GP"
+                  if (containerType === "40H") containerType = "40HQ"
+                  
+                  const qty = parseInt(match[3], 10)
+                  const kgs = parseFloat(match[4])
+                  
+                  containerList.push({ container: containerNo, type: containerType, qty, kgs })
+                }
+              }
+              console.log("[v0] Parsed containers:", JSON.stringify(containerList))
             }
           }
           
@@ -627,13 +692,25 @@ export async function POST() {
           for (const excelFile of excelFiles) {
             const lines = excelFile.content.split("\n")
             combinedExcelContent += `\n\n=== File: ${excelFile.name} ===\n`
-            combinedExcelContent += lines.slice(0, 400).join("\n")
+            combinedExcelContent += lines.slice(0, 600).join("\n")
           }
           
-          // Build BL info hint
-          const blInfoHint = blNo || containerNo 
-            ? `\nBL INFO FROM PDF IN THIS FOLDER:\n- BL No.: ${blNo || "not found"}\n- Container: ${containerNo || "not found"}\n- ETD: ${etd || "not found"}\nUSE THIS BL INFO FOR ALL ROWS.`
-            : ""
+          // Build comprehensive BOL info hint with container details
+          let blInfoHint = ""
+          if (blNo || containerList.length > 0) {
+            blInfoHint = `\n=== BOL DATA EXTRACTED FROM PDF ===
+BL No.: ${blNo || "not found"}
+WHI PO: ${whiPoFromBol || "check Marks and Numbers field"}
+ETD/Date of Issue: ${etd || "not found"}
+
+CONTAINER TABLE FROM BOL (${containerList.length} containers):
+${containerList.map(c => `- Container: ${c.container}, Type: ${c.type}, PKG: ${c.qty}, KGS: ${c.kgs}`).join("\n")}
+
+IMPORTANT: Use this BOL data for ALL rows. Each container row = one shipment line.
+If Excel has SKU details, match them with container data.
+If only BOL data, create rows from container table with whiPo="${whiPoFromBol}".
+=== END BOL DATA ===`
+          }
           
           try {
             // Call Claude with all files from this folder
@@ -644,12 +721,21 @@ export async function POST() {
               messages: [
                 {
                   role: "user",
-                  content: `Parse these Excel files from the same Invoice folder and extract Order Management data as JSON.
-Folder path: ${folderKey}
-Files in folder: ${folderFiles.map(f => f.name).join(", ")}
-IMPORTANT: Use folder path to determine supplier (e.g. AMC folder = AMC supplier)
+                  content: `Parse this AMC shipment folder and extract Order Management data.
+
+FOLDER: ${folderKey}
+FILES: ${folderFiles.map(f => f.name).join(", ")}
 ${blInfoHint}
 
+PROCESSING STEPS:
+1. BOL data above has: BL No., WHI PO (from Marks), Container list, ETD
+2. Find Invoice Excel below with: SKU, Unit Price, Amount  
+3. Merge: Use BOL for shipment info + Invoice for pricing
+4. Output one row per SKU-Container combination
+
+Invoice# should be extracted from folder name (e.g. "Invoice-20251115-25111501" → "25111501")
+
+EXCEL FILE CONTENTS:
 ${combinedExcelContent}`,
                 },
               ],
