@@ -43,6 +43,7 @@ export function WarehouseReceivingDashboard() {
   const [selectedWeek, setSelectedWeek] = useState<Date>(new Date())
   const [selectedWarehouse, setSelectedWarehouse] = useState<string>("all")
   const [selectedSupplier, setSelectedSupplier] = useState<string>("all")
+  const [selectedReceiverType, setSelectedReceiverType] = useState<string>("all") // "all", "1" (NCI), "2" (other)
   const [searchQuery, setSearchQuery] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [data, setData] = useState<ApiResponse | null>(null)
@@ -64,9 +65,10 @@ export function WarehouseReceivingDashboard() {
       const startDate = format(weekStart, "yyyy-MM-dd")
       const endDate = format(addWeeks(weekEnd, 0), "yyyy-MM-dd") // Include the end date
       
-      // Always fetch all warehouses, filter on client side
+      // Fetch with receiverType filter, warehouse filter on client side
+      const receiverTypeParam = selectedReceiverType !== "all" ? `&receiverType=${selectedReceiverType}` : ""
       const response = await fetch(
-        `/api/wms/receivers?startDate=${startDate}&endDate=${endDate}&warehouse=all`
+        `/api/wms/receivers?startDate=${startDate}&endDate=${endDate}&warehouse=all${receiverTypeParam}`
       )
 
       if (!response.ok) {
@@ -191,6 +193,18 @@ export function WarehouseReceivingDashboard() {
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
+
+            {/* Receiver Type (NCI) Filter */}
+            <Select value={selectedReceiverType} onValueChange={setSelectedReceiverType}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="1">NCI Only</SelectItem>
+                <SelectItem value="2">Non-NCI</SelectItem>
+              </SelectContent>
+            </Select>
 
             {/* Fetch Button */}
             <Button onClick={handleFetchData} disabled={isLoading}>

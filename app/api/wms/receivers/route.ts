@@ -65,6 +65,7 @@ export async function GET(request: NextRequest) {
   const startDate = searchParams.get("startDate")
   const endDate = searchParams.get("endDate")
   const warehouse = searchParams.get("warehouse") || "all"
+  const receiverType = searchParams.get("receiverType") || "all" // "all", "1" (NCI), "2" (other)
 
   if (!startDate || !endDate) {
     return NextResponse.json(
@@ -87,8 +88,9 @@ export async function GET(request: NextRequest) {
       const rql = `readOnly.status==1;arrivalDate=ge=${startDate};arrivalDate=lt=${endDate}`
       const encodedRql = encodeURIComponent(rql)
       
-      // Remove facilityId as it's not supported - we'll filter by warehouse name after
-      const wmsUrl = `https://secure-wms.com/inventory/receivers?detail=ReceiveItems&pgsiz=100&pgnum=${pageNum}&rql=${encodedRql}`
+      // Build URL with optional receiverType filter (1=NCI, 2=other)
+      const receiverTypeParam = receiverType !== "all" ? `&receiverType=${receiverType}` : ""
+      const wmsUrl = `https://secure-wms.com/inventory/receivers?detail=ReceiveItems&pgsiz=100&pgnum=${pageNum}&rql=${encodedRql}${receiverTypeParam}`
 
       console.log(`[v0] Fetching WMS receivers, page ${pageNum}`)
       console.log(`[v0] WMS URL: ${wmsUrl}`)
@@ -213,6 +215,7 @@ export async function GET(request: NextRequest) {
       receivers: formattedReceivers,
       dateRange: { startDate, endDate },
       warehouse,
+      receiverType,
     })
 
   } catch (error) {
