@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getWmsToken } from "@/lib/wms-auth"
 
-// Warehouse facility IDs - update these to match your actual facility IDs
-const WAREHOUSES: Record<string, number> = {
-  kent: 4,    // Kent warehouse facility ID
-  moses: 5,   // Moses Lake warehouse facility ID
+// Warehouse names for filtering results (filter after fetching)
+const WAREHOUSE_NAMES: Record<string, string[]> = {
+  kent: ["Kent", "KENT", "kent"],
+  moses: ["Moses Lake", "MOSES LAKE", "Moses", "moses"],
 }
 
 interface ReceiverItem {
@@ -54,70 +54,68 @@ export async function GET(request: NextRequest) {
   try {
     const allReceivers: Receiver[] = []
     
-    // Determine which warehouses to query
-    const warehousesToQuery = warehouse === "all" 
-      ? Object.entries(WAREHOUSES) 
-      : [[warehouse, WAREHOUSES[warehouse as keyof typeof WAREHOUSES]]]
+    // Get OAuth token first
+    const wmsToken = await getWmsToken()
+    
+    let pageNum = 1
+    let hasMore = true
 
-    for (const [warehouseName, facilityId] of warehousesToQuery) {
-      if (!facilityId) continue
+    while (hasMore) {
+      // Build RQL query: status==1 means received/completed
+      const rql = `readOnly.status==1;arrivalDate=ge=${startDate};arrivalDate=lt=${endDate}`
+      const encodedRql = encodeURIComponent(rql)
+      
+      // Remove facilityId as it's not supported - we'll filter by warehouse name after
+      const wmsUrl = `https://secure-wms.com/inventory/receivers?detail=ReceiveItems&pgsiz=100&pgnum=${pageNum}&rql=${encodedRql}`
 
-      let pageNum = 1
-      let hasMore = true
+      console.log(`[v0] Fetching WMS receivers, page ${pageNum}`)
+      console.log(`[v0] WMS URL: ${wmsUrl}`)
+      
+      const response = await fetch(wmsUrl, {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${wmsToken}`,
+          "Accept": "application/json",
+        },
+      })
 
-      while (hasMore) {
-        // Build RQL query: status==1 means received/completed
-        const rql = `readOnly.status==1;arrivalDate=ge=${startDate};arrivalDate=lt=${endDate}`
-        const encodedRql = encodeURIComponent(rql)
-        
-        const wmsUrl = `https://secure-wms.com/inventory/receivers?detail=ReceiveItems&facilityId=${facilityId}&pgsiz=100&pgnum=${pageNum}&rql=${encodedRql}`
-
-        console.log(`[v0] Fetching WMS receivers: ${warehouseName}, page ${pageNum}`)
-
-        // Get OAuth token
-        const wmsToken = await getWmsToken()
-        
-        console.log(`[v0] WMS URL: ${wmsUrl}`)
-        
-        const response = await fetch(wmsUrl, {
-          method: "GET",
-          headers: {
-            "Authorization": `Bearer ${wmsToken}`,
-            "Accept": "application/json",
-          },
-        })
-
-        if (!response.ok) {
-          const errorText = await response.text()
-          console.error(`[v0] WMS API error: ${response.status} ${response.statusText}`)
-          console.error(`[v0] WMS API response: ${errorText}`)
-          throw new Error(`WMS API error: ${response.status} - ${errorText.substring(0, 200)}`)
-        }
-
-        const data: WMSResponse = await response.json()
-        
-        if (data.receivers && data.receivers.length > 0) {
-          // Add warehouse name to each receiver
-          const receiversWithWarehouse = data.receivers.map(r => ({
-            ...r,
-            warehouseName,
-          }))
-          allReceivers.push(...receiversWithWarehouse)
-          
-          // Check if there are more pages
-          if (data.receivers.length < 100) {
-            hasMore = false
-          } else {
-            pageNum++
-          }
-        } else {
-          hasMore = false
-        }
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error(`[v0] WMS API error: ${response.status} ${response.statusText}`)
+        console.error(`[v0] WMS API response: ${errorText}`)
+        throw new Error(`WMS API error: ${response.status} - ${errorText.substring(0, 200)}`)
       }
+
+      const data: WMSResponse = await response.json()
+      
+      if (data.receivers && data.receivers.length > 0) {
+        allReceivers.push(...data.receivers)
+        
+        // Check if there are more pages
+        if (data.receivers.length < 100) {
+          hasMore = false
+        } else {
+          pageNum++
+        }
+      } else {
+        hasMore = false
+      }
+    }
+    
+    // Filter by warehouse if specified
+    let filteredReceivers = allReceivers
+    if (warehouse !== "all" && WAREHOUSE_NAMES[warehouse]) {
+      const warehouseNameMatches = WAREHOUSE_NAMES[warehouse]
+      filteredReceivers = allReceivers.filter(r => {
+        const facilityName = r.readOnly?.facilityIdentifier?.name || ""
+        return warehouseNameMatches.some(name => 
+          facilityName.toLowerCase().includes(name.toLowerCase())
+        )
+      })
     }
 
     // Process and format the data
-    const formattedReceivers = allReceivers.map(receiver => {
+    const formattedReceivers = filteredReceivers.map(receiver => {
       const items = receiver.receiveItems?.map(item => ({
         sku: item.itemIdentifier?.sku || "Unknown",
         qty: item.qty || 0,
@@ -128,14 +126,15 @@ export async function GET(request: NextRequest) {
       const totalQty = items.reduce((sum, item) => sum + item.qty, 0)
       const skuCount = new Set(items.map(i => i.sku)).size
 
+      const facilityName = receiver.readOnly?.facilityIdentifier?.name || ""
+      
       return {
         receiverId: receiver.receiverId,
         referenceNum: receiver.referenceNum || receiver.poNum || `RCV-${receiver.receiverId}`,
         poNum: receiver.poNum || "",
         arrivalDate: receiver.arrivalDate || "",
         receiveDate: receiver.receiveDate || "",
-        warehouse: (receiver as Receiver & { warehouseName?: string }).warehouseName || "Unknown",
-        facilityName: receiver.readOnly?.facilityIdentifier?.name || "",
+        warehouse: facilityName,
         totalQty,
         skuCount,
         items,
