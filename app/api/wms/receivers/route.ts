@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-
-// WMS API credentials - use env var if available, fallback to provided base64
-const WMS_AUTH = process.env.WMS_API_KEY || "NmZkYjQ2MjUtMDE3YS00YmZjLWI4OWUtOTA4YzQ4NDI3ZTA4OjUxT3NmNHVvTVpNSkpoaHA2dHF6WU40MDFtTFhoR3I0"
+import { getWmsToken } from "@/lib/wms-auth"
 
 // Warehouse facility IDs - update these to match your actual facility IDs
 const WAREHOUSES: Record<string, number> = {
@@ -76,15 +74,16 @@ export async function GET(request: NextRequest) {
 
         console.log(`[v0] Fetching WMS receivers: ${warehouseName}, page ${pageNum}`)
 
+        // Get OAuth token
+        const wmsToken = await getWmsToken()
+        
         console.log(`[v0] WMS URL: ${wmsUrl}`)
-        console.log(`[v0] Using auth (first 20 chars): ${WMS_AUTH.substring(0, 20)}...`)
         
         const response = await fetch(wmsUrl, {
           method: "GET",
           headers: {
-            "Authorization": `Basic ${WMS_AUTH}`,
-            "Accept": "application/hal+json",
-            "Content-Type": "application/json",
+            "Authorization": `Bearer ${wmsToken}`,
+            "Accept": "application/json",
           },
         })
 
