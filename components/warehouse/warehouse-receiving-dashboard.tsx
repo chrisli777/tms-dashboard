@@ -205,8 +205,8 @@ export function WarehouseReceivingDashboard() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="1">NCI Only</SelectItem>
-                <SelectItem value="normal">Normal Receiving</SelectItem>
+                <SelectItem value="normal">Receiving</SelectItem>
+                <SelectItem value="1">NCI</SelectItem>
               </SelectContent>
             </Select>
 
