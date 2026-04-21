@@ -35,6 +35,7 @@ interface Receiver {
   ReadOnly?: {
     ReceiverId?: number
     Status?: number
+    ReceiverType?: number // 0 or 2 = normal, 1 = NCI
     CustomerIdentifier?: {
       Name?: string
       Id?: number
@@ -46,6 +47,7 @@ interface Receiver {
     CreationDate?: string
     LastModifiedDate?: string
   }
+  ReceiverType?: number // Also check at top level
   ReferenceNum?: string
   PoNum?: string
   ArrivalDate?: string
@@ -88,8 +90,15 @@ export async function GET(request: NextRequest) {
       const rql = `readOnly.status==1;arrivalDate=ge=${startDate};arrivalDate=lt=${endDate}`
       const encodedRql = encodeURIComponent(rql)
       
-      // Build URL with optional receiverType filter (1=NCI, 2=other)
-      const receiverTypeParam = receiverType !== "all" ? `&receiverType=${receiverType}` : ""
+      // Build URL with optional receiverType filter (1=NCI, "normal"=0 or 2)
+      // For "normal" we need to make two requests and merge, or just filter after
+      // Since WMS API doesn't support OR in receiverType, we'll handle "normal" specially
+      let receiverTypeParam = ""
+      if (receiverType === "1") {
+        receiverTypeParam = "&receiverType=1"
+      }
+      // For "normal" and "all", we fetch all and filter later
+      
       const wmsUrl = `https://secure-wms.com/inventory/receivers?detail=ReceiveItems&pgsiz=100&pgnum=${pageNum}&rql=${encodedRql}${receiverTypeParam}`
 
       console.log(`[v0] Fetching WMS receivers, page ${pageNum}`)
@@ -140,8 +149,18 @@ export async function GET(request: NextRequest) {
     
     console.log(`[v0] Total receivers fetched: ${allReceivers.length}`)
     
+    // Filter by receiverType if "normal" (0 or 2)
+    let typeFilteredReceivers = allReceivers
+    if (receiverType === "normal") {
+      typeFilteredReceivers = allReceivers.filter(r => {
+        const rType = r.ReceiverType ?? r.ReadOnly?.ReceiverType
+        return rType === 0 || rType === 2
+      })
+      console.log(`[v0] After normal filter (type 0 or 2): ${typeFilteredReceivers.length} receivers`)
+    }
+    
     // First: filter to only Kent and Moses Lake warehouses, and exclude certain suppliers
-    let filteredReceivers = allReceivers.filter(r => {
+    let filteredReceivers = typeFilteredReceivers.filter(r => {
       const facilityName = r.ReadOnly?.FacilityIdentifier?.Name || ""
       const supplierName = r.ReadOnly?.CustomerIdentifier?.Name || ""
       

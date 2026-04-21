@@ -202,7 +202,7 @@ export function WarehouseReceivingDashboard() {
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
                 <SelectItem value="1">NCI Only</SelectItem>
-                <SelectItem value="2">Non-NCI</SelectItem>
+                <SelectItem value="normal">正常收货</SelectItem>
               </SelectContent>
             </Select>
 
