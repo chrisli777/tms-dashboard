@@ -63,8 +63,9 @@ export function WarehouseReceivingDashboard() {
       const startDate = format(weekStart, "yyyy-MM-dd")
       const endDate = format(addWeeks(weekEnd, 0), "yyyy-MM-dd") // Include the end date
       
+      // Always fetch all warehouses, filter on client side
       const response = await fetch(
-        `/api/wms/receivers?startDate=${startDate}&endDate=${endDate}&warehouse=${selectedWarehouse}`
+        `/api/wms/receivers?startDate=${startDate}&endDate=${endDate}&warehouse=all`
       )
 
       if (!response.ok) {
@@ -91,8 +92,16 @@ export function WarehouseReceivingDashboard() {
     setExpandedRows(newExpanded)
   }
 
-  // Filter receivers by search query
+  // Filter receivers by warehouse and search query
   const filteredReceivers = data?.receivers?.filter(receiver => {
+    // Filter by warehouse
+    if (selectedWarehouse !== "all") {
+      const warehouseName = receiver.warehouse?.toLowerCase() || ""
+      if (selectedWarehouse === "kent" && !warehouseName.includes("kent")) return false
+      if (selectedWarehouse === "moses" && !warehouseName.includes("moses")) return false
+    }
+    
+    // Filter by search query
     if (!searchQuery) return true
     const query = searchQuery.toLowerCase()
     return (
@@ -172,18 +181,6 @@ export function WarehouseReceivingDashboard() {
               </Button>
             </div>
 
-            {/* Warehouse Selector */}
-            <Select value={selectedWarehouse} onValueChange={setSelectedWarehouse}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Select warehouse" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Warehouses</SelectItem>
-                <SelectItem value="kent">Kent</SelectItem>
-                <SelectItem value="moses">Moses Lake</SelectItem>
-              </SelectContent>
-            </Select>
-
             {/* Fetch Button */}
             <Button onClick={handleFetchData} disabled={isLoading}>
               {isLoading ? (
@@ -251,17 +248,33 @@ export function WarehouseReceivingDashboard() {
             ))}
           </div>
 
-          {/* Search and Export */}
-          <div className="flex items-center justify-between gap-4">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search by reference #, PO #, or SKU..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
+          {/* Search, Filter and Export */}
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              {/* Search */}
+              <div className="relative w-[300px]">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search reference #, PO #, SKU..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              
+              {/* Warehouse Filter */}
+              <Select value={selectedWarehouse} onValueChange={setSelectedWarehouse}>
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue placeholder="Warehouse" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Warehouses</SelectItem>
+                  <SelectItem value="kent">Kent</SelectItem>
+                  <SelectItem value="moses">Moses Lake</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
+            
             <Button variant="outline" onClick={handleExport} disabled={!filteredReceivers.length}>
               <Download className="mr-2 h-4 w-4" />
               Export CSV

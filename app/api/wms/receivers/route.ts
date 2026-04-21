@@ -34,7 +34,9 @@ interface Receiver {
 }
 
 interface WMSResponse {
+  TotalResults?: number
   totalResults?: number
+  ResourceList?: Receiver[]
   receivers?: Receiver[]
 }
 
@@ -88,21 +90,23 @@ export async function GET(request: NextRequest) {
 
       const data: WMSResponse = await response.json()
       
-      console.log(`[v0] WMS response totalResults: ${data.totalResults}`)
-      console.log(`[v0] WMS response receivers count: ${data.receivers?.length || 0}`)
+      // WMS API returns ResourceList (not receivers)
+      const receivers = data.ResourceList || data.receivers || []
+      const totalResults = data.TotalResults || data.totalResults || 0
       
-      // Log raw response structure to debug
-      if (data.receivers && data.receivers.length > 0) {
-        console.log(`[v0] First receiver sample:`, JSON.stringify(data.receivers[0], null, 2).substring(0, 500))
-      } else {
-        console.log(`[v0] No receivers in response. Raw data keys:`, Object.keys(data))
+      console.log(`[v0] WMS response totalResults: ${totalResults}`)
+      console.log(`[v0] WMS response receivers count: ${receivers.length}`)
+      
+      // Log first receiver to debug structure
+      if (receivers.length > 0) {
+        console.log(`[v0] First receiver sample:`, JSON.stringify(receivers[0], null, 2).substring(0, 800))
       }
       
-      if (data.receivers && data.receivers.length > 0) {
-        allReceivers.push(...data.receivers)
+      if (receivers.length > 0) {
+        allReceivers.push(...receivers)
         
         // Check if there are more pages
-        if (data.receivers.length < 100) {
+        if (receivers.length < 100) {
           hasMore = false
         } else {
           pageNum++
