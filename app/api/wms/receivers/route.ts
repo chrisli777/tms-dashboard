@@ -7,6 +7,12 @@ const WAREHOUSE_NAMES: Record<string, string[]> = {
   moses: ["Moses Lake", "MOSES LAKE", "Moses", "moses"],
 }
 
+// Only include these warehouses (Kent and Moses Lake)
+const ALLOWED_WAREHOUSES = ["Kent", "Moses Lake"]
+
+// Suppliers to exclude
+const EXCLUDED_SUPPLIERS = ["Julian Electric - newML"]
+
 // WMS API returns PascalCase fields
 interface ReceiverItem {
   ReadOnly?: {
@@ -132,11 +138,30 @@ export async function GET(request: NextRequest) {
     
     console.log(`[v0] Total receivers fetched: ${allReceivers.length}`)
     
-    // Filter by warehouse if specified (using PascalCase fields)
-    let filteredReceivers = allReceivers
+    // First: filter to only Kent and Moses Lake warehouses, and exclude certain suppliers
+    let filteredReceivers = allReceivers.filter(r => {
+      const facilityName = r.ReadOnly?.FacilityIdentifier?.Name || ""
+      const supplierName = r.ReadOnly?.CustomerIdentifier?.Name || ""
+      
+      // Only include allowed warehouses (Kent or Moses Lake)
+      const isAllowedWarehouse = ALLOWED_WAREHOUSES.some(allowed => 
+        facilityName.toLowerCase().includes(allowed.toLowerCase())
+      )
+      
+      // Exclude certain suppliers
+      const isExcludedSupplier = EXCLUDED_SUPPLIERS.some(excluded =>
+        supplierName.toLowerCase() === excluded.toLowerCase()
+      )
+      
+      return isAllowedWarehouse && !isExcludedSupplier
+    })
+    
+    console.log(`[v0] After base filter (Kent/Moses Lake, no excluded suppliers): ${filteredReceivers.length} receivers`)
+    
+    // Then: apply additional warehouse filter if specified
     if (warehouse !== "all" && WAREHOUSE_NAMES[warehouse]) {
       const warehouseNameMatches = WAREHOUSE_NAMES[warehouse]
-      filteredReceivers = allReceivers.filter(r => {
+      filteredReceivers = filteredReceivers.filter(r => {
         const facilityName = r.ReadOnly?.FacilityIdentifier?.Name || ""
         return warehouseNameMatches.some(name => 
           facilityName.toLowerCase().includes(name.toLowerCase())
