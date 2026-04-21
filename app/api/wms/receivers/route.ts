@@ -7,30 +7,44 @@ const WAREHOUSE_NAMES: Record<string, string[]> = {
   moses: ["Moses Lake", "MOSES LAKE", "Moses", "moses"],
 }
 
+// WMS API returns PascalCase fields
 interface ReceiverItem {
-  itemIdentifier?: {
-    sku?: string
+  ReadOnly?: {
+    ReceiveItemId?: number
+    UnitIdentifier?: {
+      Name?: string
+    }
   }
-  qty?: number
-  lotNumber?: string
-  receivedDate?: string
+  ItemIdentifier?: {
+    Sku?: string
+    Description?: string
+  }
+  Qty?: number
+  LotNumber?: string
+  ReceivedDate?: string
 }
 
 interface Receiver {
-  receiverId?: number
-  referenceNum?: string
-  poNum?: string
-  arrivalDate?: string
-  receiveDate?: string
-  status?: number
-  facilityId?: number
-  receiveItems?: ReceiverItem[]
-  readOnly?: {
-    status?: number
-    facilityIdentifier?: {
-      name?: string
+  // PascalCase (actual WMS response)
+  ReadOnly?: {
+    ReceiverId?: number
+    Status?: number
+    CustomerIdentifier?: {
+      Name?: string
+      Id?: number
     }
+    FacilityIdentifier?: {
+      Name?: string
+      Id?: number
+    }
+    CreationDate?: string
+    LastModifiedDate?: string
   }
+  ReferenceNum?: string
+  PoNum?: string
+  ArrivalDate?: string
+  ReceiveDate?: string
+  ReceiveItems?: ReceiverItem[]
 }
 
 interface WMSResponse {
@@ -118,12 +132,12 @@ export async function GET(request: NextRequest) {
     
     console.log(`[v0] Total receivers fetched: ${allReceivers.length}`)
     
-    // Filter by warehouse if specified
+    // Filter by warehouse if specified (using PascalCase fields)
     let filteredReceivers = allReceivers
     if (warehouse !== "all" && WAREHOUSE_NAMES[warehouse]) {
       const warehouseNameMatches = WAREHOUSE_NAMES[warehouse]
       filteredReceivers = allReceivers.filter(r => {
-        const facilityName = r.readOnly?.facilityIdentifier?.name || ""
+        const facilityName = r.ReadOnly?.FacilityIdentifier?.Name || ""
         return warehouseNameMatches.some(name => 
           facilityName.toLowerCase().includes(name.toLowerCase())
         )
@@ -132,27 +146,31 @@ export async function GET(request: NextRequest) {
     
     console.log(`[v0] After warehouse filter (${warehouse}): ${filteredReceivers.length} receivers`)
 
-    // Process and format the data
+    // Process and format the data (map PascalCase to camelCase)
     const formattedReceivers = filteredReceivers.map(receiver => {
-      const items = receiver.receiveItems?.map(item => ({
-        sku: item.itemIdentifier?.sku || "Unknown",
-        qty: item.qty || 0,
-        lotNumber: item.lotNumber || "",
-        receivedDate: item.receivedDate || "",
+      const items = receiver.ReceiveItems?.map(item => ({
+        sku: item.ItemIdentifier?.Sku || "Unknown",
+        qty: item.Qty || 0,
+        description: item.ItemIdentifier?.Description || "",
+        lotNumber: item.LotNumber || "",
+        receivedDate: item.ReceivedDate || "",
       })) || []
 
       const totalQty = items.reduce((sum, item) => sum + item.qty, 0)
       const skuCount = new Set(items.map(i => i.sku)).size
 
-      const facilityName = receiver.readOnly?.facilityIdentifier?.name || ""
+      const facilityName = receiver.ReadOnly?.FacilityIdentifier?.Name || ""
+      const supplierName = receiver.ReadOnly?.CustomerIdentifier?.Name || ""
+      const receiverId = receiver.ReadOnly?.ReceiverId
       
       return {
-        receiverId: receiver.receiverId,
-        referenceNum: receiver.referenceNum || receiver.poNum || `RCV-${receiver.receiverId}`,
-        poNum: receiver.poNum || "",
-        arrivalDate: receiver.arrivalDate || "",
-        receiveDate: receiver.receiveDate || "",
+        receiverId,
+        referenceNum: receiver.ReferenceNum || receiver.PoNum || `RCV-${receiverId}`,
+        poNum: receiver.PoNum || "",
+        arrivalDate: receiver.ArrivalDate || "",
+        receiveDate: receiver.ReceiveDate || "",
         warehouse: facilityName,
+        supplier: supplierName,
         totalQty,
         skuCount,
         items,

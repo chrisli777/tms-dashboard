@@ -25,7 +25,7 @@ interface Receiver {
   arrivalDate: string
   receiveDate: string
   warehouse: string
-  facilityName: string
+  supplier: string
   totalQty: number
   skuCount: number
   items: ReceiverItem[]
@@ -42,6 +42,7 @@ interface ApiResponse {
 export function WarehouseReceivingDashboard() {
   const [selectedWeek, setSelectedWeek] = useState<Date>(new Date())
   const [selectedWarehouse, setSelectedWarehouse] = useState<string>("all")
+  const [selectedSupplier, setSelectedSupplier] = useState<string>("all")
   const [searchQuery, setSearchQuery] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [data, setData] = useState<ApiResponse | null>(null)
@@ -92,7 +93,10 @@ export function WarehouseReceivingDashboard() {
     setExpandedRows(newExpanded)
   }
 
-  // Filter receivers by warehouse and search query
+  // Get unique suppliers from data
+  const suppliers = [...new Set(data?.receivers?.map(r => r.supplier).filter(Boolean) || [])]
+
+  // Filter receivers by warehouse, supplier, and search query
   const filteredReceivers = data?.receivers?.filter(receiver => {
     // Filter by warehouse
     if (selectedWarehouse !== "all") {
@@ -101,12 +105,18 @@ export function WarehouseReceivingDashboard() {
       if (selectedWarehouse === "moses" && !warehouseName.includes("moses")) return false
     }
     
+    // Filter by supplier
+    if (selectedSupplier !== "all" && receiver.supplier !== selectedSupplier) {
+      return false
+    }
+    
     // Filter by search query
     if (!searchQuery) return true
     const query = searchQuery.toLowerCase()
     return (
       receiver.referenceNum.toLowerCase().includes(query) ||
       receiver.poNum.toLowerCase().includes(query) ||
+      receiver.supplier?.toLowerCase().includes(query) ||
       receiver.items.some(item => item.sku.toLowerCase().includes(query))
     )
   }) || []
@@ -128,7 +138,7 @@ export function WarehouseReceivingDashboard() {
     if (!filteredReceivers.length) return
 
     const rows: string[][] = [
-      ["Reference #", "PO #", "Warehouse", "Arrival Date", "SKU", "Qty", "Lot Number"]
+      ["Reference #", "PO #", "Supplier", "Warehouse", "Arrival Date", "SKU", "Qty", "Lot Number"]
     ]
 
     filteredReceivers.forEach(receiver => {
@@ -136,6 +146,7 @@ export function WarehouseReceivingDashboard() {
         rows.push([
           receiver.referenceNum,
           receiver.poNum,
+          receiver.supplier || "",
           receiver.warehouse,
           receiver.arrivalDate,
           item.sku,
@@ -273,6 +284,19 @@ export function WarehouseReceivingDashboard() {
                   <SelectItem value="moses">Moses Lake</SelectItem>
                 </SelectContent>
               </Select>
+              
+              {/* Supplier Filter */}
+              <Select value={selectedSupplier} onValueChange={setSelectedSupplier}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Supplier" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Suppliers</SelectItem>
+                  {suppliers.sort().map(supplier => (
+                    <SelectItem key={supplier} value={supplier}>{supplier}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             
             <Button variant="outline" onClick={handleExport} disabled={!filteredReceivers.length}>
@@ -291,6 +315,7 @@ export function WarehouseReceivingDashboard() {
                       <TableHead className="w-[50px]"></TableHead>
                       <TableHead>Reference #</TableHead>
                       <TableHead>PO #</TableHead>
+                      <TableHead>Supplier</TableHead>
                       <TableHead>Warehouse</TableHead>
                       <TableHead>Arrival Date</TableHead>
                       <TableHead className="text-right">SKUs</TableHead>
@@ -300,7 +325,7 @@ export function WarehouseReceivingDashboard() {
                   <TableBody>
                     {filteredReceivers.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                        <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
                           No receivers found for the selected criteria
                         </TableCell>
                       </TableRow>
@@ -328,6 +353,9 @@ export function WarehouseReceivingDashboard() {
                                 <TableCell className="font-mono text-sm">
                                   {receiver.poNum || "-"}
                                 </TableCell>
+                                <TableCell className="text-sm">
+                                  {receiver.supplier || "-"}
+                                </TableCell>
                                 <TableCell>
                                   <Badge variant="outline" className="capitalize">
                                     {receiver.warehouse}
@@ -342,7 +370,7 @@ export function WarehouseReceivingDashboard() {
                             </CollapsibleTrigger>
                             <CollapsibleContent asChild>
                               <TableRow className="bg-muted/30">
-                                <TableCell colSpan={7} className="p-0">
+                                <TableCell colSpan={8} className="p-0">
                                   <div className="px-8 py-4">
                                     <p className="mb-2 text-sm font-medium text-muted-foreground">
                                       Items ({receiver.items.length})
