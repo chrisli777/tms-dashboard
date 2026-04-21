@@ -43,7 +43,7 @@ export function WarehouseReceivingDashboard() {
   const [selectedWeek, setSelectedWeek] = useState<Date>(new Date())
   const [selectedWarehouse, setSelectedWarehouse] = useState<string>("all")
   const [selectedSupplier, setSelectedSupplier] = useState<string>("all")
-  const [selectedReceiverType, setSelectedReceiverType] = useState<string>("all") // "all", "1" (NCI), "2" (other)
+  const [selectedReceiverType, setSelectedReceiverType] = useState<string>("normal") // "normal" (Receiving), "1" (NCI)
   const [searchQuery, setSearchQuery] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [data, setData] = useState<ApiResponse | null>(null)
@@ -204,7 +204,6 @@ export function WarehouseReceivingDashboard() {
                 <SelectValue placeholder="Type" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
                 <SelectItem value="normal">Receiving</SelectItem>
                 <SelectItem value="1">NCI</SelectItem>
               </SelectContent>
