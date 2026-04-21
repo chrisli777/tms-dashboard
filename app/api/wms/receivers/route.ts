@@ -76,17 +76,22 @@ export async function GET(request: NextRequest) {
 
         console.log(`[v0] Fetching WMS receivers: ${warehouseName}, page ${pageNum}`)
 
+        console.log(`[v0] WMS URL: ${wmsUrl}`)
+        
         const response = await fetch(wmsUrl, {
+          method: "GET",
           headers: {
             "Authorization": `Basic ${WMS_AUTH}`,
-            "Accept": "application/json",
-            "Content-Type": "application/json",
+            "Accept": "application/hal+json",
+            "Host": "secure-wms.com",
           },
         })
 
         if (!response.ok) {
+          const errorText = await response.text()
           console.error(`[v0] WMS API error: ${response.status} ${response.statusText}`)
-          throw new Error(`WMS API error: ${response.status}`)
+          console.error(`[v0] WMS API response: ${errorText}`)
+          throw new Error(`WMS API error: ${response.status} - ${errorText.substring(0, 200)}`)
         }
 
         const data: WMSResponse = await response.json()

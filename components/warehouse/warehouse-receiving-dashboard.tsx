@@ -147,7 +147,7 @@ export function WarehouseReceivingDashboard() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       {/* Filter Bar */}
       <Card>
         <CardHeader className="pb-4">
@@ -204,9 +204,10 @@ export function WarehouseReceivingDashboard() {
 
       {/* Error Message */}
       {error && (
-        <Card className="border-destructive">
+        <Card className="border-destructive bg-destructive/5">
           <CardContent className="pt-6">
-            <p className="text-destructive">Error: {error}</p>
+            <p className="font-medium text-destructive">Error fetching data</p>
+            <p className="mt-1 text-sm text-muted-foreground">{error}</p>
           </CardContent>
         </Card>
       )}
