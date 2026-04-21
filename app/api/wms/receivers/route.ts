@@ -88,6 +88,16 @@ export async function GET(request: NextRequest) {
 
       const data: WMSResponse = await response.json()
       
+      console.log(`[v0] WMS response totalResults: ${data.totalResults}`)
+      console.log(`[v0] WMS response receivers count: ${data.receivers?.length || 0}`)
+      
+      // Log raw response structure to debug
+      if (data.receivers && data.receivers.length > 0) {
+        console.log(`[v0] First receiver sample:`, JSON.stringify(data.receivers[0], null, 2).substring(0, 500))
+      } else {
+        console.log(`[v0] No receivers in response. Raw data keys:`, Object.keys(data))
+      }
+      
       if (data.receivers && data.receivers.length > 0) {
         allReceivers.push(...data.receivers)
         
@@ -102,6 +112,8 @@ export async function GET(request: NextRequest) {
       }
     }
     
+    console.log(`[v0] Total receivers fetched: ${allReceivers.length}`)
+    
     // Filter by warehouse if specified
     let filteredReceivers = allReceivers
     if (warehouse !== "all" && WAREHOUSE_NAMES[warehouse]) {
@@ -113,6 +125,8 @@ export async function GET(request: NextRequest) {
         )
       })
     }
+    
+    console.log(`[v0] After warehouse filter (${warehouse}): ${filteredReceivers.length} receivers`)
 
     // Process and format the data
     const formattedReceivers = filteredReceivers.map(receiver => {
