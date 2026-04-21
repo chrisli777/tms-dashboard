@@ -242,7 +242,7 @@ export function WarehouseReceivingDashboard() {
       {data && (
         <>
           {/* Summary Cards - Always show total (unfiltered) data */}
-          <div className="grid gap-4 md:grid-cols-5">
+          <div className="grid gap-4 md:grid-cols-4">
             <Card>
               <CardContent className="pt-6">
                 <div className="flex items-center gap-4">
