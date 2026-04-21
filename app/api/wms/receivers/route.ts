@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
 
-// WMS API credentials (base64 encoded)
-const WMS_AUTH = "NmZkYjQ2MjUtMDE3YS00YmZjLWI4OWUtOTA4YzQ4NDI3ZTA4OjUxT3NmNHVvTVpNSkpoaHA2dHF6WU40MDFtTFhoR3I0"
+// WMS API credentials - use env var if available, fallback to provided base64
+const WMS_AUTH = process.env.WMS_API_KEY || "NmZkYjQ2MjUtMDE3YS00YmZjLWI4OWUtOTA4YzQ4NDI3ZTA4OjUxT3NmNHVvTVpNSkpoaHA2dHF6WU40MDFtTFhoR3I0"
 
-// Warehouse facility IDs
-const WAREHOUSES = {
-  kent: 4, // Kent warehouse
-  moses: 5, // Moses Lake warehouse
+// Warehouse facility IDs - update these to match your actual facility IDs
+const WAREHOUSES: Record<string, number> = {
+  kent: 4,    // Kent warehouse facility ID
+  moses: 5,   // Moses Lake warehouse facility ID
 }
 
 interface ReceiverItem {
@@ -77,13 +77,14 @@ export async function GET(request: NextRequest) {
         console.log(`[v0] Fetching WMS receivers: ${warehouseName}, page ${pageNum}`)
 
         console.log(`[v0] WMS URL: ${wmsUrl}`)
+        console.log(`[v0] Using auth (first 20 chars): ${WMS_AUTH.substring(0, 20)}...`)
         
         const response = await fetch(wmsUrl, {
           method: "GET",
           headers: {
             "Authorization": `Basic ${WMS_AUTH}`,
             "Accept": "application/hal+json",
-            "Host": "secure-wms.com",
+            "Content-Type": "application/json",
           },
         })
 
