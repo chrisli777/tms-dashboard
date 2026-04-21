@@ -123,8 +123,9 @@ export function WarehouseReceivingDashboard() {
     )
   }) || []
 
-  // Group by warehouse for summary
-  const warehouseSummary = filteredReceivers.reduce((acc, receiver) => {
+  // Group by warehouse for summary (use ALL data, not filtered)
+  const allReceivers = data?.receivers || []
+  const warehouseSummary = allReceivers.reduce((acc, receiver) => {
     const wh = receiver.warehouse
     if (!acc[wh]) {
       acc[wh] = { count: 0, totalQty: 0, skuCount: 0 }
@@ -134,6 +135,9 @@ export function WarehouseReceivingDashboard() {
     acc[wh].skuCount += receiver.skuCount
     return acc
   }, {} as Record<string, { count: number; totalQty: number; skuCount: number }>)
+  
+  // Count unique suppliers (from all data)
+  const totalSuppliers = new Set(allReceivers.map(r => r.supplier).filter(Boolean)).size
 
   // Export to CSV
   const handleExport = () => {
@@ -202,7 +206,7 @@ export function WarehouseReceivingDashboard() {
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
                 <SelectItem value="1">NCI Only</SelectItem>
-                <SelectItem value="normal">正常收货</SelectItem>
+                <SelectItem value="normal">Normal Receiving</SelectItem>
               </SelectContent>
             </Select>
 
@@ -237,8 +241,8 @@ export function WarehouseReceivingDashboard() {
       {/* Results */}
       {data && (
         <>
-          {/* Summary Cards */}
-          <div className="grid gap-4 md:grid-cols-4">
+          {/* Summary Cards - Always show total (unfiltered) data */}
+          <div className="grid gap-4 md:grid-cols-5">
             <Card>
               <CardContent className="pt-6">
                 <div className="flex items-center gap-4">
@@ -247,7 +251,7 @@ export function WarehouseReceivingDashboard() {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Total Receivers</p>
-                    <p className="text-2xl font-bold">{filteredReceivers.length}</p>
+                    <p className="text-2xl font-bold">{allReceivers.length}</p>
                   </div>
                 </div>
               </CardContent>
@@ -271,6 +275,21 @@ export function WarehouseReceivingDashboard() {
                 </CardContent>
               </Card>
             ))}
+            
+            {/* Supplier Count */}
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-4">
+                  <div className="rounded-lg bg-green-100 p-3">
+                    <Package className="h-6 w-6 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total Suppliers</p>
+                    <p className="text-2xl font-bold">{totalSuppliers}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           {/* Search, Filter and Export */}
