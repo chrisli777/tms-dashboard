@@ -49,3 +49,21 @@ export function representativeStatus(raws: (string | null | undefined)[]): strin
 
 /** All display labels, useful for filter option lists. */
 export const STATUS_DISPLAY_VALUES = ["On Water", "In Transit", "Cleared"] as const
+
+/** Lifecycle steps used by the detail timeline UI (display labels). */
+export const STATUS_STEPS = [
+  { label: "On Water", step: 0 },
+  { label: "In Transit", step: 1 },
+  { label: "Cleared", step: 2 },
+]
+
+/** Map a display label (or raw token) to its timeline step index. */
+export function getStatusStep(status: string): number {
+  const stepByLabel: Record<string, number> = {
+    "On Water": 0,
+    "In Transit": 1,
+    "Cleared": 2,
+  }
+  // Accept both display labels and raw tokens.
+  return stepByLabel[status] ?? stepByLabel[statusLabel(status)] ?? 0
+}

@@ -20,9 +20,9 @@ interface OrderFilterBarProps {
   supplierOptions: string[]
   counts: {
     all: number
-    pending: number
-    inProgress: number
-    completed: number
+    onWater: number
+    inTransit: number
+    cleared: number
   }
 }
 
@@ -38,9 +38,9 @@ export function OrderFilterBar({
 }: OrderFilterBarProps) {
   const tabs = [
     { value: "all", label: "All", count: counts.all },
-    { value: "Pending", label: "Pending", count: counts.pending },
-    { value: "In Progress", label: "In Progress", count: counts.inProgress },
-    { value: "Completed", label: "Completed", count: counts.completed },
+    { value: "On Water", label: "On Water", count: counts.onWater },
+    { value: "In Transit", label: "In Transit", count: counts.inTransit },
+    { value: "Cleared", label: "Cleared", count: counts.cleared },
   ]
 
   return (
