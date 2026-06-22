@@ -1,9 +1,6 @@
 "use client"
 
-import { useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { useSWRConfig } from "swr"
 import { Card, CardContent } from "@/components/ui/card"
 import {
   Table,
@@ -14,8 +11,9 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Ship, Check, ChevronRight } from "lucide-react"
-import { StatusSelector, SHIPMENT_STATUSES } from "@/components/ui/status-selector"
+import { Check, ChevronRight } from "lucide-react"
+import { StatusBadge } from "@/components/ui/status-badge"
+import { STATUS_STEPS, getStatusStep } from "@/lib/status"
 import type { BOLSummary } from "@/lib/bol-data"
 
 interface BOLDetailProps {
@@ -38,68 +36,13 @@ function formatCurrency(value: number) {
   })}`
 }
 
-const TIMELINE_STEPS = [
-  { label: "Booked", step: 0 },
-  { label: "On Water", step: 1 },
-  { label: "Customs Cleared", step: 2 },
-  { label: "Delivering", step: 3 },
-  { label: "Delivered", step: 4 },
-  { label: "Closed", step: 5 },
-]
-
-function getCurrentStep(status: string) {
-  const stepMap: Record<string, number> = {
-    "Booked": 0,
-    "On Water": 1,
-    "Customs Cleared": 2,
-    "Delivering": 3,
-    "Delivered": 4,
-    "Closed": 5,
-  }
-  return stepMap[status] ?? 1
-}
-
 export function BOLDetail({ summary }: BOLDetailProps) {
-  const router = useRouter()
-  const { mutate } = useSWRConfig()
-  
-  // Use local state to reflect status changes immediately
-  const [currentStatus, setCurrentStatus] = useState(summary.status)
-  const currentStep = getCurrentStep(currentStatus)
-  
+  const currentStep = getStatusStep(summary.status)
+
   const totalItems = summary.containers.reduce(
     (sum, c) => sum + c.items.length,
     0
   )
-
-  const handleStatusChange = async (newStatus: string) => {
-    // Optimistically update UI
-    const previousStatus = currentStatus
-    setCurrentStatus(newStatus)
-    
-    try {
-      const response = await fetch(`/api/shipments/${summary.id}/status`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        // Revert on error
-        setCurrentStatus(previousStatus)
-        throw new Error(data.error || "Failed to update status")
-      }
-
-      // Revalidate all related data
-      mutate(() => true, undefined, { revalidate: true })
-      router.refresh()
-    } catch (error) {
-      console.error("Error updating status:", error)
-      alert("Failed to update status. Please try again.")
-    }
-  }
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-6">
@@ -122,11 +65,7 @@ export function BOLDetail({ summary }: BOLDetailProps) {
             {formatCurrency(summary.totalAmount)}
           </span>
         </div>
-        <StatusSelector
-          currentStatus={currentStatus}
-          statuses={SHIPMENT_STATUSES}
-          onStatusChange={handleStatusChange}
-        />
+        <StatusBadge status={summary.status} />
       </div>
 
       {/* Status Timeline */}
@@ -136,10 +75,10 @@ export function BOLDetail({ summary }: BOLDetailProps) {
             STATUS TIMELINE
           </h2>
           <div className="flex items-center">
-            {TIMELINE_STEPS.map((step, idx) => {
+            {STATUS_STEPS.map((step, idx) => {
               const isCompleted = step.step <= currentStep
               const isActive = step.step === currentStep
-              const isLast = idx === TIMELINE_STEPS.length - 1
+              const isLast = idx === STATUS_STEPS.length - 1
 
               return (
                 <div
@@ -329,7 +268,7 @@ function ContainerStatusSummary({ containers }: { containers: { status: string }
   }, {} as Record<string, number>)
 
   // Define status order for consistent display
-  const statusOrder = ["Booked", "On Water", "Customs Cleared", "Scheduled", "Delivered"]
+  const statusOrder = ["On Water", "In Transit", "Cleared"]
   
   // Filter to only show statuses that have counts
   const activeStatuses = statusOrder.filter(s => statusCounts[s] > 0)
@@ -352,54 +291,4 @@ function ContainerStatusSummary({ containers }: { containers: { status: string }
   )
 }
 
-function StatusBadge({ status }: { status: string }) {
-  if (status === "Customs Cleared" || status === "Cleared") {
-    return (
-      <span className="inline-flex items-center gap-1.5 rounded-md bg-success/10 px-2.5 py-1 text-xs font-medium text-success">
-        <svg
-          className="size-3.5"
-          viewBox="0 0 16 16"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <rect
-            width="16"
-            height="16"
-            rx="3"
-            fill="currentColor"
-            fillOpacity="0.15"
-          />
-          <path
-            d="M11.5 5.5L7 10.5L4.5 8"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-        Customs Cleared
-      </span>
-    )
-  }
-  if (status === "Delivered" || status === "Closed") {
-    return (
-      <span className="inline-flex items-center gap-1.5 rounded-md bg-success/10 px-2.5 py-1 text-xs font-medium text-success">
-        <Check className="size-3.5" />
-        {status}
-      </span>
-    )
-  }
-  if (status === "Booked" || status === "Scheduled") {
-    return (
-      <span className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
-        {status}
-      </span>
-    )
-  }
-  return (
-    <span className="inline-flex items-center gap-1.5 rounded-md bg-chart-3/10 px-2.5 py-1 text-xs font-medium text-chart-3">
-      <Ship className="size-3.5" />
-      {status === "In Transit" ? "In Transit" : status}
-    </span>
-  )
-}
+

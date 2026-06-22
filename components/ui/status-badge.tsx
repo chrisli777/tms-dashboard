@@ -1,10 +1,13 @@
 import { Badge } from "@/components/ui/badge"
+import { statusLabel } from "@/lib/status"
 
 /**
  * Read-only status badge for shipment / container lifecycle statuses coming
- * from the oms_management backend: "On Water", "In Transit", "Cleared".
+ * from the oms_management backend. Accepts either raw tokens (e.g. "ON_WATER")
+ * or display labels (e.g. "On Water") and always renders the friendly label.
  */
 export function StatusBadge({ status }: { status: string }) {
+  const label = statusLabel(status)
   const styles: Record<string, { className: string; dot: string; pulse?: boolean }> = {
     Cleared: {
       className: "border-emerald-200 bg-emerald-50 text-emerald-700",
@@ -21,7 +24,7 @@ export function StatusBadge({ status }: { status: string }) {
     },
   }
 
-  const style = styles[status] ?? {
+  const style = styles[label] ?? {
     className: "border-slate-200 bg-slate-50 text-slate-700",
     dot: "bg-slate-400",
   }
@@ -33,7 +36,7 @@ export function StatusBadge({ status }: { status: string }) {
           style.pulse ? "animate-pulse" : ""
         }`}
       />
-      {status}
+      {label}
     </Badge>
   )
 }
