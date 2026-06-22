@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
+import { statusLabel } from "@/lib/status"
 
 /* ── Types ── */
 
@@ -6,7 +7,7 @@ export interface DispatchContainer {
   id: string
   container: string
   type: string
-  status: "Customs Cleared" | "Scheduled" | "Delivered"
+  status: string
   shipmentId: string
   invoice: string
   bol: string
@@ -27,138 +28,114 @@ export interface DispatchContainer {
   }[]
 }
 
+/* ── View row shape (order_management_view) ── */
+
+interface ViewRow {
+  supplier: string | null
+  customer: string | null
+  invoice: string | null
+  bl_no: string | null
+  whi_po: string | null
+  container: string | null
+  type: string | null
+  sku: string | null
+  qty: number | null
+  gw_kg: number | string | null
+  unit_price_usd: number | string | null
+  amount_usd: number | string | null
+  etd: string | null
+  eta: string | null
+  status: string | null
+}
+
+/* ── Helpers ── */
+
+// Group denormalized view rows by container number. The new schema has no
+// container UUID exposed in the view, so the container number is used as the id.
+function groupRowsToContainers(rows: ViewRow[]): DispatchContainer[] {
+  const map = new Map<string, DispatchContainer>()
+
+  for (const r of rows) {
+    const containerName = r.container ?? ""
+    if (!containerName) continue
+
+    if (!map.has(containerName)) {
+      map.set(containerName, {
+        id: containerName,
+        container: containerName,
+        type: r.type ?? "",
+        status: statusLabel(r.status),
+        shipmentId: r.bl_no ?? r.invoice ?? "",
+        invoice: r.invoice ?? "",
+        bol: r.bl_no ?? "",
+        supplier: r.supplier ?? "",
+        customer: r.customer ?? "",
+        etd: r.etd ?? "",
+        eta: r.eta ?? "",
+        totalQty: 0,
+        totalWeight: 0,
+        totalAmount: 0,
+        skuCount: 0,
+        items: [],
+      })
+    }
+
+    const c = map.get(containerName)!
+    const qty = Number(r.qty ?? 0)
+    const weight = Number(r.gw_kg ?? 0)
+    const amount = Number(r.amount_usd ?? 0)
+
+    c.items.push({
+      sku: r.sku ?? "",
+      qty,
+      gw_kg: weight,
+      amount_usd: amount,
+      whi_po: r.whi_po ?? "",
+    })
+    c.totalQty += qty
+    c.totalWeight += weight
+    c.totalAmount += amount
+    c.skuCount = c.items.length
+  }
+
+  return Array.from(map.values())
+}
+
 /* ── Server-side data fetching ── */
 
 export async function fetchAllContainers(): Promise<DispatchContainer[]> {
   const supabase = await createClient()
 
-  // Only fetch containers that are Customs Cleared, Scheduled, or Delivered
-  // Containers with "On Water" or "Booked" status should NOT appear in dispatch
-  const { data: containers, error } = await supabase
-    .from("containers")
-    .select(`
-      id,
-      container,
-      type,
-      status,
-      shipment_id,
-      shipments (
-        id,
-        invoice,
-        bol,
-        supplier,
-        customer,
-        etd,
-        eta
-      ),
-      container_items (
-        sku,
-        qty,
-        gw_kg,
-        amount_usd,
-        whi_po
-      )
-    `)
-    .in("status", ["Customs Cleared", "Scheduled", "Delivered"])
-    .order("container", { ascending: true })
+  // Dispatch only concerns containers that have cleared customs and are ready
+  // for / in the process of inland delivery.
+  const { data, error } = await supabase
+    .from("order_management_view")
+    .select("*")
+    .eq("status", "CLEARED")
 
   if (error) {
-    console.error("Failed to fetch containers:", error)
+    console.error("Failed to fetch order_management_view:", error)
     return []
   }
 
-  return (containers ?? []).map((c) => {
-    const shipment = c.shipments as Record<string, unknown> | null
-    const items = (c.container_items as Record<string, unknown>[]) ?? []
-
-    return {
-      id: c.id,
-      container: c.container,
-      type: c.type,
-      status: c.status as "Customs Cleared" | "Scheduled" | "Delivered",
-      shipmentId: c.shipment_id,
-      invoice: (shipment?.invoice as string) ?? "",
-      bol: (shipment?.bol as string) ?? "",
-      supplier: (shipment?.supplier as string) ?? "",
-      customer: (shipment?.customer as string) ?? "",
-      etd: (shipment?.etd as string) ?? "",
-      eta: (shipment?.eta as string) ?? "",
-      totalQty: items.reduce((sum, i) => sum + Number(i.qty), 0),
-      totalWeight: items.reduce((sum, i) => sum + Number(i.gw_kg), 0),
-      totalAmount: items.reduce((sum, i) => sum + Number(i.amount_usd), 0),
-      skuCount: items.length,
-      items: items.map((i) => ({
-        sku: i.sku as string,
-        qty: Number(i.qty),
-        gw_kg: Number(i.gw_kg),
-        amount_usd: Number(i.amount_usd),
-        whi_po: i.whi_po as string,
-      })),
-    }
-  })
+  const containers = groupRowsToContainers((data ?? []) as ViewRow[])
+  return containers.sort((a, b) => a.container.localeCompare(b.container))
 }
 
-export async function fetchContainerById(containerId: string): Promise<DispatchContainer | null> {
+export async function fetchContainerById(
+  containerNumber: string
+): Promise<DispatchContainer | null> {
   const supabase = await createClient()
 
-  const { data: containers, error } = await supabase
-    .from("containers")
-    .select(`
-      id,
-      container,
-      type,
-      status,
-      shipment_id,
-      shipments (
-        id,
-        invoice,
-        bol,
-        supplier,
-        customer,
-        etd,
-        eta
-      ),
-      container_items (
-        sku,
-        qty,
-        gw_kg,
-        amount_usd,
-        whi_po
-      )
-    `)
-    .eq("id", containerId)
-    .limit(1)
+  const { data, error } = await supabase
+    .from("order_management_view")
+    .select("*")
+    .eq("container", containerNumber)
 
-  if (error || !containers || containers.length === 0) {
+  if (error || !data || data.length === 0) {
     return null
   }
 
-  const c = containers[0]
-  const shipment = c.shipments as Record<string, unknown> | null
-  const items = (c.container_items as Record<string, unknown>[]) ?? []
-
-  return {
-    id: c.id,
-    container: c.container,
-    type: c.type,
-    status: c.status as "Cleared" | "In Transit",
-    shipmentId: c.shipment_id,
-    invoice: (shipment?.invoice as string) ?? "",
-    bol: (shipment?.bol as string) ?? "",
-    supplier: (shipment?.supplier as string) ?? "",
-    customer: (shipment?.customer as string) ?? "",
-    etd: (shipment?.etd as string) ?? "",
-    eta: (shipment?.eta as string) ?? "",
-    totalQty: items.reduce((sum, i) => sum + Number(i.qty), 0),
-    totalWeight: items.reduce((sum, i) => sum + Number(i.gw_kg), 0),
-    totalAmount: items.reduce((sum, i) => sum + Number(i.amount_usd), 0),
-    skuCount: items.length,
-    items: items.map((i) => ({
-      sku: i.sku as string,
-      qty: Number(i.qty),
-      gw_kg: Number(i.gw_kg),
-      amount_usd: Number(i.amount_usd),
-      whi_po: i.whi_po as string,
-    })),
-  }
+  const containers = groupRowsToContainers(data as ViewRow[])
+  return containers[0] ?? null
 }

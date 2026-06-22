@@ -2,7 +2,6 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Badge } from "@/components/ui/badge"
 import {
   Table,
   TableBody,
@@ -12,36 +11,11 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { ChevronRight } from "lucide-react"
+import { StatusBadge } from "@/components/ui/status-badge"
 import type { DispatchContainer } from "@/lib/dispatch-data"
 
 interface DispatchTableProps {
   data: DispatchContainer[]
-}
-
-function StatusBadge({ status }: { status: string }) {
-  if (status === "Delivered") {
-    return (
-      <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
-        <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
-        Delivered
-      </Badge>
-    )
-  }
-  if (status === "Scheduled") {
-    return (
-      <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
-        <span className="mr-1.5 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-amber-500" />
-        Scheduled
-      </Badge>
-    )
-  }
-  // Customs Cleared
-  return (
-    <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
-      <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-blue-500" />
-      Customs Cleared
-    </Badge>
-  )
 }
 
 function formatCurrency(value: number) {

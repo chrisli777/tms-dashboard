@@ -11,11 +11,11 @@ export function KPICards({ data }: KPICardsProps) {
   const totalShipments = data.length
   const totalAmount = data.reduce((sum, r) => sum + r.totalAmount, 0)
   const totalContainers = data.reduce((sum, r) => sum + r.containerCount, 0)
-  // Match actual status values: "On Water" = in transit, "Customs Cleared" = cleared
-  const clearedCount = data.filter((r) => r.status === "Customs Cleared").length
-  const inTransitCount = data.filter((r) => r.status === "On Water" || r.status === "Booked").length
+  // Status values from the oms_management backend: "On Water", "In Transit", "Cleared"
+  const clearedCount = data.filter((r) => r.status === "Cleared").length
+  const inTransitCount = data.filter((r) => r.status === "On Water" || r.status === "In Transit").length
   const inTransitValue = data
-    .filter((r) => r.status === "On Water" || r.status === "Booked")
+    .filter((r) => r.status === "On Water" || r.status === "In Transit")
     .reduce((sum, r) => sum + r.totalAmount, 0)
 
   const cards = [

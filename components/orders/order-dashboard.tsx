@@ -4,7 +4,6 @@ import { useState, useMemo } from "react"
 import { OrderKPICards } from "./order-kpi-cards"
 import { OrderFilterBar } from "./order-filter-bar"
 import { OrderTable } from "./order-table"
-import { SyncPODialog } from "./sync-po-dialog"
 import type { OrderSummary } from "@/lib/order-data"
 
 interface OrderDashboardProps {

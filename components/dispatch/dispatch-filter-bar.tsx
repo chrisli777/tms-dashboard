@@ -20,8 +20,6 @@ interface DispatchFilterBarProps {
   typeOptions: string[]
   counts: {
     all: number
-    scheduled: number
-    delivered: number
   }
 }
 
@@ -36,9 +34,7 @@ export function DispatchFilterBar({
   counts,
 }: DispatchFilterBarProps) {
   const tabs = [
-    { value: "all", label: `All (${counts.all})` },
-    { value: "Scheduled", label: `Scheduled (${counts.scheduled})` },
-    { value: "Delivered", label: `Delivered (${counts.delivered})` },
+    { value: "all", label: `Cleared for Dispatch (${counts.all})` },
   ]
 
   return (

@@ -23,8 +23,9 @@ export function BOLDashboard({ initialData }: BOLDashboardProps) {
   const counts = useMemo(
     () => ({
       all: initialData.length,
-      inTransit: initialData.filter((r) => r.status === "On Water" || r.status === "Booked").length,
-      cleared: initialData.filter((r) => r.status === "Customs Cleared").length,
+      onWater: initialData.filter((r) => r.status === "On Water").length,
+      inTransit: initialData.filter((r) => r.status === "In Transit").length,
+      cleared: initialData.filter((r) => r.status === "Cleared").length,
     }),
     [initialData]
   )
@@ -32,8 +33,9 @@ export function BOLDashboard({ initialData }: BOLDashboardProps) {
   const filtered = useMemo(() => {
     return initialData.filter((r) => {
       // Map filter values to actual status values
-      if (statusFilter === "In Transit" && r.status !== "On Water" && r.status !== "Booked") return false
-      if (statusFilter === "Cleared" && r.status !== "Customs Cleared") return false
+      if (statusFilter === "On Water" && r.status !== "On Water") return false
+      if (statusFilter === "In Transit" && r.status !== "In Transit") return false
+      if (statusFilter === "Cleared" && r.status !== "Cleared") return false
       if (supplierFilter !== "all" && r.supplier !== supplierFilter) return false
       if (search) {
         const q = search.toLowerCase()

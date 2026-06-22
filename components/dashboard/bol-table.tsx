@@ -10,6 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { ChevronRight } from "lucide-react"
+import { StatusBadge } from "@/components/ui/status-badge"
 import type { BOLSummary } from "@/lib/bol-data"
 
 interface BOLTableProps {
@@ -124,40 +125,3 @@ export function BOLTable({ data }: BOLTableProps) {
   )
 }
 
-function StatusBadge({ status }: { status: string }) {
-  if (status === "Customs Cleared" || status === "Cleared" || status === "Delivered" || status === "Closed") {
-    return (
-      <span className="inline-flex items-center gap-1.5 rounded-md bg-success/10 px-2.5 py-1 text-xs font-medium text-success">
-        <svg
-          className="size-3.5"
-          viewBox="0 0 16 16"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <rect width="16" height="16" rx="3" fill="currentColor" fillOpacity="0.15" />
-          <path
-            d="M11.5 5.5L7 10.5L4.5 8"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-        {status === "Cleared" ? "Customs Cleared" : status}
-      </span>
-    )
-  }
-  if (status === "Booked") {
-    return (
-      <span className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
-        Booked
-      </span>
-    )
-  }
-  return (
-    <span className="inline-flex items-center gap-1.5 rounded-md bg-chart-3/10 px-2.5 py-1 text-xs font-medium text-chart-3">
-      <span className="size-2 animate-pulse rounded-full bg-chart-3" />
-      {status === "In Transit" ? "In Transit" : status}
-    </span>
-  )
-}
