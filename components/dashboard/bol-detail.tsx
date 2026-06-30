@@ -16,19 +16,10 @@ import { StatusBadge } from "@/components/ui/status-badge"
 import { STATUS_STEPS, getStatusStep } from "@/lib/status"
 import { TrackingDateCell } from "./tracking-date-cell"
 import { etdCellState, etaCellState } from "@/lib/tracking-rules"
-import type { BOLSummary, ContainerGroup } from "@/lib/bol-data"
+import type { BOLSummary } from "@/lib/bol-data"
 
 interface BOLDetailProps {
   summary: BOLSummary
-}
-
-function formatDate(dateStr: string) {
-  const date = new Date(dateStr + "T00:00:00")
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  })
 }
 
 function formatCurrency(value: number) {
@@ -57,12 +48,12 @@ export function BOLDetail({ summary }: BOLDetailProps) {
           <span className="tabular-nums text-muted-foreground">
             {summary.containerCount} containers
           </span>
-          <span className="text-muted-foreground">
-            ETD: {formatDate(summary.etd)}
-          </span>
-          <span className="text-muted-foreground">
-            ETA: {formatDate(summary.eta)}
-          </span>
+              <span className="flex items-center gap-1.5 text-muted-foreground">
+                ETD/ATD: <TrackingDateCell state={etdCellState(summary)} kind="etd" inline />
+              </span>
+              <span className="flex items-center gap-1.5 text-muted-foreground">
+                ETA/ATA: <TrackingDateCell state={etaCellState(summary)} kind="eta" inline />
+              </span>
           <span className="font-semibold tabular-nums text-foreground">
             {formatCurrency(summary.totalAmount)}
           </span>
@@ -147,19 +138,15 @@ export function BOLDetail({ summary }: BOLDetailProps) {
             <div className="grid grid-cols-3 gap-4">
               <div>
                 <p className="text-[10px] font-semibold tracking-wider text-muted-foreground">
-                  ETD
+                  ETD / ATD
                 </p>
-                <p className="text-sm font-medium text-foreground">
-                  {formatDate(summary.etd)}
-                </p>
+                <TrackingDateCell state={etdCellState(summary)} kind="etd" />
               </div>
               <div>
                 <p className="text-[10px] font-semibold tracking-wider text-muted-foreground">
-                  ETA
+                  ETA / ATA
                 </p>
-                <p className="text-sm font-medium text-foreground">
-                  {formatDate(summary.eta)}
-                </p>
+                <TrackingDateCell state={etaCellState(summary)} kind="eta" />
               </div>
               <div>
                 <p className="text-[10px] font-semibold tracking-wider text-muted-foreground">
@@ -201,7 +188,15 @@ export function BOLDetail({ summary }: BOLDetailProps) {
                     </Badge>
                     <StatusBadge status={ctr.status} />
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-4">
+                    <div className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">
+                      <span className="font-semibold">ETD/ATD:</span>
+                      <TrackingDateCell state={etdCellState(ctr)} kind="etd" inline />
+                    </div>
+                    <div className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">
+                      <span className="font-semibold">ETA/ATA:</span>
+                      <TrackingDateCell state={etaCellState(ctr)} kind="eta" inline />
+                    </div>
                     <span className="text-xs text-muted-foreground">
                       {ctr.items.length} {ctr.items.length === 1 ? "SKU" : "SKUs"}
                     </span>

@@ -21,9 +21,11 @@ function formatDate(dateStr: string | null) {
 export function TrackingDateCell({
   state,
   kind,
+  inline = false,
 }: {
   state: DateCellState
   kind: "etd" | "eta"
+  inline?: boolean
 }) {
   const tag = state.isActual
     ? kind === "etd"
@@ -34,7 +36,7 @@ export function TrackingDateCell({
       : null
 
   return (
-    <span className="inline-flex items-center gap-1.5 text-sm">
+    <span className={`inline-flex items-center gap-1.5 ${inline ? "text-xs" : "text-sm"}`}>
       <span className={`tabular-nums ${DATE_CELL_CLASS[state.color]}`}>
         {formatDate(state.value)}
       </span>
