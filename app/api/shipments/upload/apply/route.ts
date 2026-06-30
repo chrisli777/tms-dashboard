@@ -35,14 +35,12 @@ export async function POST(request: Request) {
 
     for (const rec of records) {
       const hbl = rec.hbl.trim()
-      const mbl = rec.mbl?.trim() || null
 
-      // bol_number may hold either the house or master B/L; match against both.
-      const keys = [hbl, mbl].filter((v): v is string => !!v)
+      // Match strictly on the House B/L against shipments.bol_number.
       const { data: shipments } = await supabase
         .from("shipments")
         .select("id")
-        .in("bol_number", keys)
+        .eq("bol_number", hbl)
 
       const shipmentIds = (shipments ?? []).map((s) => s.id as string)
       if (shipmentIds.length === 0) {

@@ -247,21 +247,13 @@ export async function POST(request: Request) {
         const hbl = rec.hbl.trim()
         const mbl = rec.mbl?.trim() || null
 
-        // bol_number may hold either the house or the master B/L depending on
-        // the backend, so match against both values from the file.
-        const keys = [hbl, mbl].filter((v): v is string => !!v)
+        // Match strictly on the House B/L against shipments.bol_number.
         const { data: shipments } = await supabase
           .from("shipments")
           .select("id, bol_number")
-          .in("bol_number", keys)
+          .eq("bol_number", hbl)
 
         const shipmentIds = (shipments ?? []).map((s) => s.id as string)
-        const matchedBy =
-          shipments && shipments.length > 0
-            ? (shipments[0].bol_number as string) === hbl
-              ? "HBL"
-              : "MBL"
-            : null
 
         let containers: (ContainerTracking & { id: string })[] = []
         if (shipmentIds.length > 0) {
@@ -278,7 +270,6 @@ export async function POST(request: Request) {
         return {
           hbl,
           mbl,
-          matchedBy,
           vessel: rec.vessel ?? null,
           matched: shipmentIds.length > 0,
           containerCount: containers.length,
