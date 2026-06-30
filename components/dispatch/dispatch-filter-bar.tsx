@@ -34,7 +34,7 @@ export function DispatchFilterBar({
   counts,
 }: DispatchFilterBarProps) {
   const tabs = [
-    { value: "all", label: `Cleared for Dispatch (${counts.all})` },
+    { value: "all", label: `Arrived & Ready to Dispatch (${counts.all})` },
   ]
 
   return (

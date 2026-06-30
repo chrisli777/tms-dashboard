@@ -17,6 +17,10 @@ export interface MasterOrderRow {
   etd: string | null
   eta: string | null
   status: string
+  etd_original: string | null
+  atd: string | null
+  eta_original: string | null
+  ata: string | null
 }
 
 export interface MasterDashboard {
@@ -85,7 +89,7 @@ export async function getMasterData(): Promise<MasterData> {
     totalContainers: containers.size,
     totalValue,
     totalQty,
-    clearedShipments: byStatus("Cleared"),
+    clearedShipments: byStatus("Arrived"),
     inTransitShipments: byStatus("In Transit"),
     onWaterShipments: byStatus("On Water"),
   }

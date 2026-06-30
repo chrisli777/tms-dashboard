@@ -44,7 +44,7 @@ function getDaysRemaining(dueDate: string | null): { days: number; isUrgent: boo
 }
 
 export function OrderDetail({ order }: OrderDetailProps) {
-  const clearedBOLs = order.bols.filter((b) => b.status === "Cleared").length
+  const clearedBOLs = order.bols.filter((b) => b.status === "Arrived").length
   const inTransitBOLs = order.bols.filter((b) =>
     b.status === "In Transit" || b.status === "On Water"
   ).length
@@ -82,7 +82,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
 
         {/* Due Date Card */}
         <Card className={`${
-          order.status === "Cleared" || (order.progressPercent ?? 100) === 100
+          order.status === "Arrived" || (order.progressPercent ?? 100) === 100
             ? "border-success/20"
             : order.dueDate && getDaysRemaining(order.dueDate)?.isUrgent
               ? "border-destructive/20"
@@ -91,14 +91,14 @@ export function OrderDetail({ order }: OrderDetailProps) {
           <CardContent className="p-5">
             <div className="mb-3 flex items-center gap-2">
               <div className={`flex size-8 items-center justify-center rounded-full ${
-                order.status === "Cleared" || (order.progressPercent ?? 100) === 100
+                order.status === "Arrived" || (order.progressPercent ?? 100) === 100
                   ? "bg-success/10"
                   : order.dueDate && getDaysRemaining(order.dueDate)?.isUrgent
                     ? "bg-destructive/10"
                     : "bg-muted"
               }`}>
                 <Calendar className={`size-4 ${
-                  order.status === "Cleared" || (order.progressPercent ?? 100) === 100
+                  order.status === "Arrived" || (order.progressPercent ?? 100) === 100
                     ? "text-success"
                     : order.dueDate && getDaysRemaining(order.dueDate)?.isUrgent
                       ? "text-destructive"
@@ -107,7 +107,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
               </div>
               <h3 className="font-semibold text-foreground">Due Date</h3>
             </div>
-            <DueDateCardContent dueDate={order.dueDate} isComplete={order.status === "Cleared" || (order.progressPercent ?? 100) === 100} />
+            <DueDateCardContent dueDate={order.dueDate} isComplete={order.status === "Arrived" || (order.progressPercent ?? 100) === 100} />
           </CardContent>
         </Card>
       </div>
@@ -140,7 +140,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
               {clearedBOLs}
             </div>
             <p className="text-xs font-semibold tracking-wider text-muted-foreground">
-              CLEARED
+              ARRIVED
             </p>
           </CardContent>
         </Card>

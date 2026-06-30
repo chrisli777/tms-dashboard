@@ -11,8 +11,8 @@ export function KPICards({ data }: KPICardsProps) {
   const totalShipments = data.length
   const totalAmount = data.reduce((sum, r) => sum + r.totalAmount, 0)
   const totalContainers = data.reduce((sum, r) => sum + r.containerCount, 0)
-  // Status values from the oms_management backend: "On Water", "In Transit", "Cleared"
-  const clearedCount = data.filter((r) => r.status === "Cleared").length
+  // Status values from the oms_management backend: "On Water", "In Transit", "Arrived"
+  const clearedCount = data.filter((r) => r.status === "Arrived").length
   const inTransitCount = data.filter((r) => r.status === "On Water" || r.status === "In Transit").length
   const inTransitValue = data
     .filter((r) => r.status === "On Water" || r.status === "In Transit")
@@ -38,7 +38,7 @@ export function KPICards({ data }: KPICardsProps) {
       ),
     },
     {
-      label: "CLEARED",
+      label: "ARRIVED",
       value: clearedCount.toString(),
       iconClass: "text-success",
       cardClass: "border-success/20 bg-success/5",

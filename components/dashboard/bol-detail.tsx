@@ -14,7 +14,9 @@ import { Badge } from "@/components/ui/badge"
 import { Check, ChevronRight } from "lucide-react"
 import { StatusBadge } from "@/components/ui/status-badge"
 import { STATUS_STEPS, getStatusStep } from "@/lib/status"
-import type { BOLSummary } from "@/lib/bol-data"
+import { TrackingDateCell } from "./tracking-date-cell"
+import { etdCellState, etaCellState } from "@/lib/tracking-rules"
+import type { BOLSummary, ContainerGroup } from "@/lib/bol-data"
 
 interface BOLDetailProps {
   summary: BOLSummary
@@ -268,7 +270,7 @@ function ContainerStatusSummary({ containers }: { containers: { status: string }
   }, {} as Record<string, number>)
 
   // Define status order for consistent display
-  const statusOrder = ["On Water", "In Transit", "Cleared"]
+  const statusOrder = ["On Water", "In Transit", "Arrived"]
   
   // Filter to only show statuses that have counts
   const activeStatuses = statusOrder.filter(s => statusCounts[s] > 0)

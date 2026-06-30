@@ -9,7 +9,7 @@ import { statusLabel } from "@/lib/status"
 export function StatusBadge({ status }: { status: string }) {
   const label = statusLabel(status)
   const styles: Record<string, { className: string; dot: string; pulse?: boolean }> = {
-    Cleared: {
+    Arrived: {
       className: "border-emerald-200 bg-emerald-50 text-emerald-700",
       dot: "bg-emerald-500",
     },

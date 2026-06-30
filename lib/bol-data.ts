@@ -19,6 +19,13 @@ export interface ContainerGroup {
   type: string
   status: string
   items: ContainerItem[]
+  // Per-container tracking dates used to color the ETD/ATD & ETA/ATA cells.
+  etd: string | null
+  etd_original: string | null
+  atd: string | null
+  eta: string | null
+  eta_original: string | null
+  ata: string | null
 }
 
 export interface BOLSummary {
@@ -31,6 +38,11 @@ export interface BOLSummary {
   status: string
   etd: string
   eta: string
+  // BOL-level tracking (representative container) for cell coloring.
+  etd_original: string | null
+  atd: string | null
+  eta_original: string | null
+  ata: string | null
   totalAmount: number
   totalWeight: number
   poCount: number
@@ -56,6 +68,10 @@ interface ViewRow {
   etd: string | null
   eta: string | null
   status: string | null
+  etd_original: string | null
+  atd: string | null
+  eta_original: string | null
+  ata: string | null
 }
 
 /* ── Helpers ── */
@@ -85,6 +101,10 @@ function groupRowsToBOLs(rows: ViewRow[]): BOLSummary[] {
         status: statusLabel(r.status),
         etd: r.etd ?? "",
         eta: r.eta ?? "",
+        etd_original: r.etd_original ?? null,
+        atd: r.atd ?? null,
+        eta_original: r.eta_original ?? null,
+        ata: r.ata ?? null,
         totalAmount: 0,
         totalWeight: 0,
         poCount: 0,
@@ -105,6 +125,12 @@ function groupRowsToBOLs(rows: ViewRow[]): BOLSummary[] {
         type: r.type ?? "",
         status: statusLabel(r.status),
         items: [],
+        etd: r.etd ?? null,
+        etd_original: r.etd_original ?? null,
+        atd: r.atd ?? null,
+        eta: r.eta ?? null,
+        eta_original: r.eta_original ?? null,
+        ata: r.ata ?? null,
       })
     }
 

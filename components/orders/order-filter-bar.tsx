@@ -40,7 +40,7 @@ export function OrderFilterBar({
     { value: "all", label: "All", count: counts.all },
     { value: "On Water", label: "On Water", count: counts.onWater },
     { value: "In Transit", label: "In Transit", count: counts.inTransit },
-    { value: "Cleared", label: "Cleared", count: counts.cleared },
+    { value: "Arrived", label: "Arrived", count: counts.cleared },
   ]
 
   return (

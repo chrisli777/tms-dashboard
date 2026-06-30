@@ -48,7 +48,7 @@ export function OrderDashboard({ initialData }: OrderDashboardProps) {
       all: filtered.length,
       onWater: filtered.filter((o) => o.status === "On Water").length,
       inTransit: filtered.filter((o) => o.status === "In Transit").length,
-      cleared: filtered.filter((o) => o.status === "Cleared").length,
+      cleared: filtered.filter((o) => o.status === "Arrived").length,
     }
   }, [initialData, supplierFilter])
 

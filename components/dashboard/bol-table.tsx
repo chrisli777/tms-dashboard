@@ -11,19 +11,12 @@ import {
 } from "@/components/ui/table"
 import { ChevronRight } from "lucide-react"
 import { StatusBadge } from "@/components/ui/status-badge"
+import { TrackingDateCell } from "./tracking-date-cell"
+import { etdCellState, etaCellState } from "@/lib/tracking-rules"
 import type { BOLSummary } from "@/lib/bol-data"
 
 interface BOLTableProps {
   data: BOLSummary[]
-}
-
-function formatDate(dateStr: string) {
-  const date = new Date(dateStr + "T00:00:00")
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  })
 }
 
 function formatCurrency(value: number) {
@@ -48,8 +41,8 @@ export function BOLTable({ data }: BOLTableProps) {
             <TableHead>SUPPLIER</TableHead>
             <TableHead className="text-center">CONTAINERS</TableHead>
             <TableHead>STATUS</TableHead>
-            <TableHead>ETD</TableHead>
-            <TableHead>ETA</TableHead>
+            <TableHead>ETD / ATD</TableHead>
+            <TableHead>ETA / ATA</TableHead>
             <TableHead className="text-right">VALUE</TableHead>
             <TableHead className="text-right">WEIGHT</TableHead>
             <TableHead className="text-right">POS</TableHead>
@@ -101,11 +94,11 @@ export function BOLTable({ data }: BOLTableProps) {
                 <TableCell>
                   <StatusBadge status={row.status} />
                 </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  {formatDate(row.etd)}
+                <TableCell>
+                  <TrackingDateCell state={etdCellState(row)} kind="etd" />
                 </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  {formatDate(row.eta)}
+                <TableCell>
+                  <TrackingDateCell state={etaCellState(row)} kind="eta" />
                 </TableCell>
                 <TableCell className="text-right font-semibold tabular-nums text-foreground">
                   {formatCurrency(row.totalAmount)}

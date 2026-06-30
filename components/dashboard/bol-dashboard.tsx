@@ -5,6 +5,7 @@ import type { BOLSummary } from "@/lib/bol-data"
 import { KPICards } from "./kpi-cards"
 import { FilterBar } from "./filter-bar"
 import { BOLTable } from "./bol-table"
+import { UploadTrackingDialog } from "./upload-tracking-dialog"
 
 interface BOLDashboardProps {
   initialData: BOLSummary[]
@@ -25,7 +26,7 @@ export function BOLDashboard({ initialData }: BOLDashboardProps) {
       all: initialData.length,
       onWater: initialData.filter((r) => r.status === "On Water").length,
       inTransit: initialData.filter((r) => r.status === "In Transit").length,
-      cleared: initialData.filter((r) => r.status === "Cleared").length,
+      cleared: initialData.filter((r) => r.status === "Arrived").length,
     }),
     [initialData]
   )
@@ -35,7 +36,7 @@ export function BOLDashboard({ initialData }: BOLDashboardProps) {
       // Map filter values to actual status values
       if (statusFilter === "On Water" && r.status !== "On Water") return false
       if (statusFilter === "In Transit" && r.status !== "In Transit") return false
-      if (statusFilter === "Cleared" && r.status !== "Cleared") return false
+      if (statusFilter === "Arrived" && r.status !== "Arrived") return false
       if (supplierFilter !== "all" && r.supplier !== supplierFilter) return false
       if (search) {
         const q = search.toLowerCase()
@@ -56,6 +57,16 @@ export function BOLDashboard({ initialData }: BOLDashboardProps) {
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-6">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-semibold">Shipments</h2>
+          <p className="text-sm text-muted-foreground">
+            Upload a tracking file to update ETD/ATD &amp; ETA/ATA automatically
+          </p>
+        </div>
+        <UploadTrackingDialog />
+      </div>
+
       <KPICards data={filtered} />
 
       <FilterBar

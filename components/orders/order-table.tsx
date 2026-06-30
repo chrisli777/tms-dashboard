@@ -177,7 +177,7 @@ function DueDateCell({ order }: { order: OrderSummary }) {
     return <span className="text-xs text-muted-foreground">-</span>
   }
 
-  const isComplete = order.status === "Cleared" || order.progressPercent === 100
+  const isComplete = order.status === "Arrived" || order.progressPercent === 100
 
   if (isComplete) {
     return (
