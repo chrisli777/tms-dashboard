@@ -20,6 +20,8 @@ import type { DateCellState, ParsedTrackingRecord } from "@/lib/tracking-rules"
 
 interface PreviewRow {
   hbl: string
+  mbl: string | null
+  matchedBy: "HBL" | "MBL" | null
   vessel: string | null
   matched: boolean
   containerCount: number
@@ -192,7 +194,17 @@ export function UploadTrackingDialog() {
                       className={`border-t ${row.matched ? "" : "opacity-50"}`}
                     >
                       <td className="px-3 py-2">
-                        <span className="block font-semibold text-foreground">{row.hbl}</span>
+                        <span className="flex items-center gap-1.5 font-semibold text-foreground">
+                          {row.hbl}
+                          {row.matchedBy && (
+                            <span className="rounded bg-emerald-100 px-1 py-0.5 text-[10px] font-medium text-emerald-700">
+                              matched by {row.matchedBy}
+                            </span>
+                          )}
+                        </span>
+                        {row.mbl && (
+                          <span className="block text-xs text-muted-foreground">MBL: {row.mbl}</span>
+                        )}
                         {!row.matched && (
                           <span className="text-xs text-destructive">No matching BOL</span>
                         )}

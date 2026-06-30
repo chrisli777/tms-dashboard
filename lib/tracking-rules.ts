@@ -24,8 +24,10 @@
 
 /** One row extracted from an uploaded tracking document by Claude. */
 export interface ParsedTrackingRecord {
-  /** House B/L — matched against shipments.bol_number. */
+  /** House B/L — primary match key against shipments.bol_number. */
   hbl: string
+  /** Master B/L — fallback match key (many backends store the MBL as bol_number). */
+  mbl?: string | null
   vesselOriginalEtd?: string | null
   revisedEtd?: string | null
   atd?: string | null
