@@ -247,11 +247,24 @@ export async function POST(request: Request) {
         const hbl = rec.hbl.trim()
         const mbl = rec.mbl?.trim() || null
 
-        // Match strictly on the House B/L against shipments.bol_number.
-        const { data: shipments } = await supabase
+        // Match the House B/L against shipments.bol_number first; if nothing
+        // matches, fall back to the Master B/L (some backends store the MBL
+        // in bol_number). The whole BOL — and all its containers — is updated.
+        let { data: shipments } = await supabase
           .from("shipments")
           .select("id, bol_number")
           .eq("bol_number", hbl)
+
+        let matchedBy: "HBL" | "MBL" | null = (shipments?.length ?? 0) > 0 ? "HBL" : null
+
+        if ((shipments?.length ?? 0) === 0 && mbl) {
+          const res = await supabase
+            .from("shipments")
+            .select("id, bol_number")
+            .eq("bol_number", mbl)
+          shipments = res.data
+          matchedBy = (shipments?.length ?? 0) > 0 ? "MBL" : null
+        }
 
         const shipmentIds = (shipments ?? []).map((s) => s.id as string)
 
@@ -270,6 +283,7 @@ export async function POST(request: Request) {
         return {
           hbl,
           mbl,
+          matchedBy,
           vessel: rec.vessel ?? null,
           matched: shipmentIds.length > 0,
           containerCount: containers.length,

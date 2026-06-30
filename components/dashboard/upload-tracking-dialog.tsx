@@ -12,7 +12,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Upload, FileSpreadsheet, Loader2, CheckCircle2, AlertCircle, ArrowRight } from "lucide-react"
 import { TrackingDateCell } from "./tracking-date-cell"
 import { statusLabel } from "@/lib/status"
@@ -21,6 +20,7 @@ import type { DateCellState, ParsedTrackingRecord } from "@/lib/tracking-rules"
 interface PreviewRow {
   hbl: string
   mbl: string | null
+  matchedBy: "HBL" | "MBL" | null
   vessel: string | null
   matched: boolean
   containerCount: number
@@ -111,7 +111,7 @@ export function UploadTrackingDialog() {
           Upload Tracking File
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-3xl overflow-hidden bg-card">
+      <DialogContent className="max-w-4xl overflow-hidden bg-card">
         <DialogHeader>
           <DialogTitle>Upload Shipment Tracking File</DialogTitle>
           <DialogDescription>
@@ -168,15 +168,15 @@ export function UploadTrackingDialog() {
 
         {/* Preview */}
         {(phase === "preview" || phase === "applying") && preview && (
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between text-sm">
-              <span className="font-medium text-foreground">{preview.fileName}</span>
-              <span className="text-muted-foreground">
+          <div className="flex min-w-0 flex-col gap-3">
+            <div className="flex items-center justify-between gap-2 text-sm">
+              <span className="truncate font-medium text-foreground">{preview.fileName}</span>
+              <span className="shrink-0 text-muted-foreground">
                 {preview.matchedCount} of {preview.recordCount} HBL matched
               </span>
             </div>
-            <ScrollArea className="h-[320px] rounded-md border bg-card">
-              <table className="w-full text-sm">
+            <div className="h-[320px] min-w-0 overflow-auto rounded-md border bg-card">
+              <table className="w-full min-w-[640px] text-sm">
                 <thead className="sticky top-0 z-10 bg-muted shadow-sm">
                   <tr className="text-left text-xs font-semibold tracking-wider text-muted-foreground">
                     <th className="px-3 py-2">HBL / BOL</th>
@@ -193,12 +193,19 @@ export function UploadTrackingDialog() {
                       className={`border-t bg-card ${row.matched ? "" : "opacity-50"}`}
                     >
                       <td className="px-3 py-2">
-                        <span className="block font-semibold text-foreground">{row.hbl}</span>
+                        <span className="flex items-center gap-1.5 font-semibold text-foreground">
+                          {row.hbl}
+                          {row.matchedBy && (
+                            <span className="rounded bg-emerald-100 px-1 py-0.5 text-[10px] font-medium text-emerald-700">
+                              by {row.matchedBy}
+                            </span>
+                          )}
+                        </span>
                         {row.mbl && (
                           <span className="block text-xs text-muted-foreground">MBL: {row.mbl}</span>
                         )}
                         {!row.matched && (
-                          <span className="text-xs text-destructive">No matching HBL</span>
+                          <span className="text-xs text-destructive">No matching HBL / MBL</span>
                         )}
                         {row.vessel && (
                           <span className="block text-xs text-muted-foreground">{row.vessel}</span>
@@ -236,7 +243,7 @@ export function UploadTrackingDialog() {
                   ))}
                 </tbody>
               </table>
-            </ScrollArea>
+            </div>
           </div>
         )}
 

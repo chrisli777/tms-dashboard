@@ -29,36 +29,46 @@ export async function POST(request: Request) {
 
     const supabase = createAdminClient()
 
-    let updatedContainers = 0
-    let matchedBols = 0
     const unmatched: string[] = []
 
-    for (const rec of records) {
-      const hbl = rec.hbl.trim()
+    // Process each BOL in parallel. Within a BOL, all containers receive the
+    // same file values, so we group containers by their computed merged result
+    // and issue one bulk update per distinct result (usually just one), instead
+    // of a separate round-trip per container.
+    const results = await Promise.all(
+      records.map(async (rec) => {
+        const hbl = rec.hbl.trim()
+        const mbl = rec.mbl?.trim() || null
 
-      // Match strictly on the House B/L against shipments.bol_number.
-      const { data: shipments } = await supabase
-        .from("shipments")
-        .select("id")
-        .eq("bol_number", hbl)
+        // Match the House B/L against shipments.bol_number first; fall back to
+        // the Master B/L if the HBL matches nothing.
+        let { data: shipments } = await supabase
+          .from("shipments")
+          .select("id")
+          .eq("bol_number", hbl)
 
-      const shipmentIds = (shipments ?? []).map((s) => s.id as string)
-      if (shipmentIds.length === 0) {
-        unmatched.push(hbl)
-        continue
-      }
-      matchedBols++
+        if ((shipments?.length ?? 0) === 0 && mbl) {
+          const res = await supabase.from("shipments").select("id").eq("bol_number", mbl)
+          shipments = res.data
+        }
 
-      const { data: ctrs } = await supabase
-        .from("shipment_containers")
-        .select("id, etd, etd_original, atd, eta, eta_original, ata, tracking_status")
-        .in("shipment_id", shipmentIds)
+        const shipmentIds = (shipments ?? []).map((s) => s.id as string)
+        if (shipmentIds.length === 0) {
+          return { matched: false, hbl, updated: 0 }
+        }
 
-      for (const ctr of (ctrs ?? []) as (ContainerTracking & { id: string })[]) {
-        const merged = mergeContainerTracking(ctr, rec)
-        const { error } = await supabase
+        const { data: ctrs } = await supabase
           .from("shipment_containers")
-          .update({
+          .select("id, etd, etd_original, atd, eta, eta_original, ata, tracking_status")
+          .in("shipment_id", shipmentIds)
+
+        const containers = (ctrs ?? []) as (ContainerTracking & { id: string })[]
+
+        // Group container ids by their merged update payload signature.
+        const groups = new Map<string, { payload: Record<string, unknown>; ids: string[] }>()
+        for (const ctr of containers) {
+          const merged = mergeContainerTracking(ctr, rec)
+          const payload = {
             etd: merged.etd,
             etd_original: merged.etd_original,
             atd: merged.atd,
@@ -66,14 +76,37 @@ export async function POST(request: Request) {
             eta_original: merged.eta_original,
             ata: merged.ata,
             tracking_status: merged.tracking_status,
-          })
-          .eq("id", ctr.id)
-
-        if (error) {
-          console.error("[v0] container update error:", error.message)
-        } else {
-          updatedContainers++
+          }
+          const sig = JSON.stringify(payload)
+          const group = groups.get(sig)
+          if (group) group.ids.push(ctr.id)
+          else groups.set(sig, { payload, ids: [ctr.id] })
         }
+
+        let updated = 0
+        await Promise.all(
+          [...groups.values()].map(async ({ payload, ids }) => {
+            const { error } = await supabase
+              .from("shipment_containers")
+              .update(payload)
+              .in("id", ids)
+            if (error) console.error("[v0] container update error:", error.message)
+            else updated += ids.length
+          }),
+        )
+
+        return { matched: true, hbl, updated }
+      }),
+    )
+
+    let updatedContainers = 0
+    let matchedBols = 0
+    for (const r of results) {
+      if (r.matched) {
+        matchedBols++
+        updatedContainers += r.updated
+      } else {
+        unmatched.push(r.hbl)
       }
     }
 
