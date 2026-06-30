@@ -37,7 +37,7 @@ export function TrackingDateCell({
 
   return (
     <span className={`inline-flex items-center gap-1.5 ${inline ? "text-xs" : "text-sm"}`}>
-      <span className={`tabular-nums ${DATE_CELL_CLASS[state.color]}`}>
+      <span className={`whitespace-nowrap tabular-nums ${DATE_CELL_CLASS[state.color]}`}>
         {formatDate(state.value)}
       </span>
       {tag && (

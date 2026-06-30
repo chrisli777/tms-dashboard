@@ -111,7 +111,7 @@ export function UploadTrackingDialog() {
           Upload Tracking File
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-4xl overflow-hidden bg-card">
+      <DialogContent className="overflow-hidden bg-card sm:max-w-[min(96vw,1100px)]">
         <DialogHeader>
           <DialogTitle>Upload Shipment Tracking File</DialogTitle>
           <DialogDescription>
@@ -175,8 +175,8 @@ export function UploadTrackingDialog() {
                 {preview.matchedCount} of {preview.recordCount} HBL matched
               </span>
             </div>
-            <div className="h-[320px] min-w-0 overflow-auto rounded-md border bg-card">
-              <table className="w-full min-w-[640px] text-sm">
+            <div className="h-[420px] min-w-0 overflow-auto rounded-md border bg-card">
+              <table className="w-full min-w-[760px] text-xs">
                 <thead className="sticky top-0 z-10 bg-muted shadow-sm">
                   <tr className="text-left text-xs font-semibold tracking-wider text-muted-foreground">
                     <th className="px-3 py-2">HBL / BOL</th>
@@ -216,16 +216,16 @@ export function UploadTrackingDialog() {
                       </td>
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-1.5">
-                          <TrackingDateCell state={row.before.etd} kind="etd" />
-                          <ArrowRight className="size-3 text-muted-foreground" />
-                          <TrackingDateCell state={row.after.etd} kind="etd" />
+                          <TrackingDateCell state={row.before.etd} kind="etd" inline />
+                          <ArrowRight className="size-3 shrink-0 text-muted-foreground" />
+                          <TrackingDateCell state={row.after.etd} kind="etd" inline />
                         </div>
                       </td>
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-1.5">
-                          <TrackingDateCell state={row.before.eta} kind="eta" />
-                          <ArrowRight className="size-3 text-muted-foreground" />
-                          <TrackingDateCell state={row.after.eta} kind="eta" />
+                          <TrackingDateCell state={row.before.eta} kind="eta" inline />
+                          <ArrowRight className="size-3 shrink-0 text-muted-foreground" />
+                          <TrackingDateCell state={row.after.eta} kind="eta" inline />
                         </div>
                       </td>
                       <td className="px-3 py-2">
