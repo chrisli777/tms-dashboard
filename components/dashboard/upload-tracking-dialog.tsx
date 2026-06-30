@@ -111,7 +111,7 @@ export function UploadTrackingDialog() {
           Upload Tracking File
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="max-w-3xl overflow-hidden bg-card">
         <DialogHeader>
           <DialogTitle>Upload Shipment Tracking File</DialogTitle>
           <DialogDescription>
@@ -175,9 +175,9 @@ export function UploadTrackingDialog() {
                 {preview.matchedCount} of {preview.recordCount} HBL matched
               </span>
             </div>
-            <ScrollArea className="h-[320px] rounded-md border">
+            <ScrollArea className="h-[320px] rounded-md border bg-card">
               <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-muted/80 backdrop-blur">
+                <thead className="sticky top-0 z-10 bg-muted shadow-sm">
                   <tr className="text-left text-xs font-semibold tracking-wider text-muted-foreground">
                     <th className="px-3 py-2">HBL / BOL</th>
                     <th className="px-3 py-2 text-center">CTRS</th>
@@ -186,11 +186,11 @@ export function UploadTrackingDialog() {
                     <th className="px-3 py-2">STATUS</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="bg-card">
                   {preview.preview.map((row) => (
                     <tr
                       key={row.hbl}
-                      className={`border-t ${row.matched ? "" : "opacity-50"}`}
+                      className={`border-t bg-card ${row.matched ? "" : "opacity-50"}`}
                     >
                       <td className="px-3 py-2">
                         <span className="block font-semibold text-foreground">{row.hbl}</span>
