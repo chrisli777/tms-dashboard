@@ -12,22 +12,16 @@ import {
 import { ChevronRight } from "lucide-react"
 import { StatusBadge } from "@/components/ui/status-badge"
 import { TrackingDateCell } from "./tracking-date-cell"
-import { etdCellState, etaCellState } from "@/lib/tracking-rules"
+import {
+  etdPlannedCellState,
+  atdCellState,
+  etaPlannedCellState,
+  ataCellState,
+} from "@/lib/tracking-rules"
 import type { BOLSummary } from "@/lib/bol-data"
 
 interface BOLTableProps {
   data: BOLSummary[]
-}
-
-function formatCurrency(value: number) {
-  return `$${value.toLocaleString("en-US", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  })}`
-}
-
-function formatWeight(value: number) {
-  return `${value.toLocaleString()} lbs`
 }
 
 export function BOLTable({ data }: BOLTableProps) {
@@ -41,10 +35,10 @@ export function BOLTable({ data }: BOLTableProps) {
             <TableHead>SUPPLIER</TableHead>
             <TableHead className="text-center">CONTAINERS</TableHead>
             <TableHead>STATUS</TableHead>
-            <TableHead>ETD / ATD</TableHead>
-            <TableHead>ETA / ATA</TableHead>
-            <TableHead className="text-right">VALUE</TableHead>
-            <TableHead className="text-right">WEIGHT</TableHead>
+            <TableHead>ETD</TableHead>
+            <TableHead>ATD</TableHead>
+            <TableHead>ETA</TableHead>
+            <TableHead>ATA</TableHead>
             <TableHead className="text-right">POS</TableHead>
           </TableRow>
         </TableHeader>
@@ -95,16 +89,16 @@ export function BOLTable({ data }: BOLTableProps) {
                   <StatusBadge status={row.status} />
                 </TableCell>
                 <TableCell>
-                  <TrackingDateCell state={etdCellState(row)} kind="etd" />
+                  <TrackingDateCell state={etdPlannedCellState(row)} kind="etd" />
                 </TableCell>
                 <TableCell>
-                  <TrackingDateCell state={etaCellState(row)} kind="eta" />
+                  <TrackingDateCell state={atdCellState(row)} kind="etd" />
                 </TableCell>
-                <TableCell className="text-right font-semibold tabular-nums text-foreground">
-                  {formatCurrency(row.totalAmount)}
+                <TableCell>
+                  <TrackingDateCell state={etaPlannedCellState(row)} kind="eta" />
                 </TableCell>
-                <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
-                  {formatWeight(row.totalWeight)}
+                <TableCell>
+                  <TrackingDateCell state={ataCellState(row)} kind="eta" />
                 </TableCell>
                 <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
                   {row.poCount} {row.poCount === 1 ? "PO" : "POs"}

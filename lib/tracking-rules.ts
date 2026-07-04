@@ -156,3 +156,50 @@ export function etaCellState(t: Partial<ContainerTracking>): DateCellState {
     color: revisedTriggered(eta, original) ? "red" : "default",
   }
 }
+
+/* ── Split-column display helpers ──
+ *
+ * When ETD/ATD and ETA/ATA are shown as separate columns:
+ *  - The ETD / ETA columns always show the vessel *original* planned date
+ *    (plain, no tag).
+ *  - The ATD / ATA columns show the actual departure/arrival (blue/green) once
+ *    it exists; before that, a *revised* estimate lands here in red. This mirrors
+ *    the rule "originals stay in ETD/ETA, revisions land in ATD/ATA first, then
+ *    the actual replaces them".
+ */
+
+/** ETD column: the original planned departure, shown plain. */
+export function etdPlannedCellState(t: Partial<ContainerTracking>): DateCellState {
+  return { value: t.etd_original ?? t.etd ?? null, isActual: false, color: "default" }
+}
+
+/** ATD column: actual departure (blue) if present, else a revised ETD (red). */
+export function atdCellState(t: Partial<ContainerTracking>): DateCellState {
+  if (t.atd) {
+    return { value: t.atd, isActual: true, color: "blue" }
+  }
+  const etd = t.etd ?? null
+  const original = t.etd_original ?? null
+  if (revisedTriggered(etd, original)) {
+    return { value: etd, isActual: false, color: "red" }
+  }
+  return { value: null, isActual: false, color: "default" }
+}
+
+/** ETA column: the original planned arrival, shown plain. */
+export function etaPlannedCellState(t: Partial<ContainerTracking>): DateCellState {
+  return { value: t.eta_original ?? t.eta ?? null, isActual: false, color: "default" }
+}
+
+/** ATA column: actual arrival (green) if present, else a revised ETA (red). */
+export function ataCellState(t: Partial<ContainerTracking>): DateCellState {
+  if (t.ata) {
+    return { value: t.ata, isActual: true, color: "green" }
+  }
+  const eta = t.eta ?? null
+  const original = t.eta_original ?? null
+  if (revisedTriggered(eta, original)) {
+    return { value: eta, isActual: false, color: "red" }
+  }
+  return { value: null, isActual: false, color: "default" }
+}
