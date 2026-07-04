@@ -265,7 +265,7 @@ function ContainerStatusSummary({ containers }: { containers: { status: string }
   }, {} as Record<string, number>)
 
   // Define status order for consistent display
-  const statusOrder = ["On Water", "In Transit", "Arrived"]
+  const statusOrder = ["Pending", "In Transit", "Arrived"]
   
   // Filter to only show statuses that have counts
   const activeStatuses = statusOrder.filter(s => statusCounts[s] > 0)

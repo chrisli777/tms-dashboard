@@ -18,15 +18,6 @@ interface DispatchTableProps {
   data: DispatchContainer[]
 }
 
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value)
-}
-
 function formatDate(dateStr: string) {
   const date = new Date(dateStr)
   return date.toLocaleDateString("en-US", {
@@ -53,14 +44,12 @@ export function DispatchTable({ data }: DispatchTableProps) {
             <TableHead>ETD</TableHead>
             <TableHead>ETA</TableHead>
             <TableHead className="text-right">QTY</TableHead>
-            <TableHead className="text-right">WEIGHT</TableHead>
-            <TableHead className="text-right">VALUE</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {data.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={11} className="h-24 text-center text-muted-foreground">
+              <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
                 No containers found
               </TableCell>
             </TableRow>
@@ -109,12 +98,6 @@ export function DispatchTable({ data }: DispatchTableProps) {
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
                   {container.totalQty.toLocaleString()}
-                </TableCell>
-                <TableCell className="text-right tabular-nums text-muted-foreground">
-                  {container.totalWeight.toLocaleString()} kg
-                </TableCell>
-                <TableCell className="text-right font-semibold tabular-nums">
-                  {formatCurrency(container.totalAmount)}
                 </TableCell>
               </TableRow>
             ))

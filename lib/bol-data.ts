@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
-import { statusLabel } from "@/lib/status"
+import { deriveTrackingStatus, representativeStatus } from "@/lib/status"
 
 /* ── Types ── */
 
@@ -98,7 +98,8 @@ function groupRowsToBOLs(rows: ViewRow[]): BOLSummary[] {
         supplier: r.supplier ?? "",
         customer: r.customer ?? "",
         containerCount: 0,
-        status: statusLabel(r.status),
+        // Derived below from the container statuses once grouping is done.
+        status: deriveTrackingStatus({ atd: r.atd, ata: r.ata }),
         etd: r.etd ?? "",
         eta: r.eta ?? "",
         etd_original: r.etd_original ?? null,
@@ -123,7 +124,7 @@ function groupRowsToBOLs(rows: ViewRow[]): BOLSummary[] {
         id: containerName,
         container: containerName,
         type: r.type ?? "",
-        status: statusLabel(r.status),
+        status: deriveTrackingStatus({ atd: r.atd, ata: r.ata }),
         items: [],
         etd: r.etd ?? null,
         etd_original: r.etd_original ?? null,
@@ -158,6 +159,9 @@ function groupRowsToBOLs(rows: ViewRow[]): BOLSummary[] {
     const containers = Array.from(containerMap.get(bolKey)!.values())
     summary.containers = containers
     summary.containerCount = containers.length
+    // The BOL shows the least-advanced status across its containers so it isn't
+    // marked "Arrived" while part of the shipment is still in transit / pending.
+    summary.status = representativeStatus(containers.map((c) => c.status))
     const allItems = containers.flatMap((c) => c.items)
     const uniquePOs = [...new Set(allItems.map((i) => i.whi_po).filter(Boolean))]
     summary.pos = uniquePOs

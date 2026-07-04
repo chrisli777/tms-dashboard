@@ -89,8 +89,10 @@ export function mergeContainerTracking(
   const nextAtd = atd ?? existing.atd ?? null
   const nextAta = ata ?? existing.ata ?? null
 
-  // Status advances with the latest actual event.
-  let tracking_status = existing.tracking_status ?? "ON_WATER"
+  // Status is derived purely from the actual events. ATA has the highest
+  // priority: an arrival always means "Arrived" (CLEARED), even without an ATD.
+  // No ATD and no ATA means the shipment has not departed yet -> PENDING.
+  let tracking_status = "PENDING"
   if (nextAtd) tracking_status = "IN_TRANSIT"
   if (nextAta) tracking_status = "CLEARED" // displayed as "Arrived"
 

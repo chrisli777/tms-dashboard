@@ -20,9 +20,9 @@ interface FilterBarProps {
   supplierOptions: string[]
   counts: {
     all: number
-    onWater: number
+    pending: number
     inTransit: number
-    cleared: number
+    arrived: number
   }
 }
 
@@ -38,9 +38,9 @@ export function FilterBar({
 }: FilterBarProps) {
   const tabs = [
     { value: "all", label: "All", count: counts.all },
-    { value: "On Water", label: "On Water", count: counts.onWater },
+    { value: "Pending", label: "Pending", count: counts.pending },
     { value: "In Transit", label: "In Transit", count: counts.inTransit },
-    { value: "Arrived", label: "Arrived", count: counts.cleared },
+    { value: "Arrived", label: "Arrived", count: counts.arrived },
   ]
 
   return (

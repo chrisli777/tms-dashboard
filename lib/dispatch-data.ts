@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
-import { statusLabel } from "@/lib/status"
+import { deriveTrackingStatus } from "@/lib/status"
 
 /* ── Types ── */
 
@@ -46,6 +46,8 @@ interface ViewRow {
   etd: string | null
   eta: string | null
   status: string | null
+  atd: string | null
+  ata: string | null
 }
 
 /* ── Helpers ── */
@@ -64,7 +66,7 @@ function groupRowsToContainers(rows: ViewRow[]): DispatchContainer[] {
         id: containerName,
         container: containerName,
         type: r.type ?? "",
-        status: statusLabel(r.status),
+        status: deriveTrackingStatus({ atd: r.atd, ata: r.ata }),
         shipmentId: r.bl_no ?? r.invoice ?? "",
         invoice: r.invoice ?? "",
         bol: r.bl_no ?? "",
@@ -106,12 +108,13 @@ function groupRowsToContainers(rows: ViewRow[]): DispatchContainer[] {
 export async function fetchAllContainers(): Promise<DispatchContainer[]> {
   const supabase = await createClient()
 
-  // Dispatch only concerns containers that have cleared customs and are ready
-  // for / in the process of inland delivery.
+  // Dispatch only concerns containers that have Arrived, i.e. an actual arrival
+  // date (ATA) has been recorded. Once a shipment arrives it becomes eligible
+  // for inland dispatch.
   const { data, error } = await supabase
     .from("order_management_view")
     .select("*")
-    .eq("status", "CLEARED")
+    .not("ata", "is", null)
 
   if (error) {
     console.error("Failed to fetch order_management_view:", error)
