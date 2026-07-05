@@ -9,6 +9,11 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Search } from "lucide-react"
+import {
+  DateRangeFilter,
+  type DateFilters,
+  type DateFilterField,
+} from "@/components/shared/date-range-filter"
 
 interface FilterBarProps {
   search: string
@@ -18,6 +23,9 @@ interface FilterBarProps {
   supplierFilter: string
   onSupplierFilterChange: (value: string) => void
   supplierOptions: string[]
+  dateFields: DateFilterField[]
+  dateFilters: DateFilters
+  onDateFiltersApply: (value: DateFilters) => void
   counts: {
     all: number
     pending: number
@@ -34,6 +42,9 @@ export function FilterBar({
   supplierFilter,
   onSupplierFilterChange,
   supplierOptions,
+  dateFields,
+  dateFilters,
+  onDateFiltersApply,
   counts,
 }: FilterBarProps) {
   const tabs = [
@@ -64,6 +75,12 @@ export function FilterBar({
         </div>
 
         <div className="flex items-center gap-3">
+          <DateRangeFilter
+            fields={dateFields}
+            value={dateFilters}
+            onApply={onDateFiltersApply}
+          />
+
           <Select value={supplierFilter} onValueChange={onSupplierFilterChange}>
             <SelectTrigger className="w-[150px]">
               <SelectValue placeholder="All Suppliers" />

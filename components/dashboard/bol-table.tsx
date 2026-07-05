@@ -9,7 +9,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { ChevronRight } from "lucide-react"
+import { ChevronRight, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
 import { StatusBadge } from "@/components/ui/status-badge"
 import { TrackingDateCell } from "./tracking-date-cell"
 import {
@@ -20,11 +20,49 @@ import {
 } from "@/lib/tracking-rules"
 import type { BOLSummary } from "@/lib/bol-data"
 
+export type SortKey = "supplier" | "status" | "etd" | "atd" | "eta" | "ata"
+export type SortDir = "asc" | "desc"
+
 interface BOLTableProps {
   data: BOLSummary[]
+  sortKey: SortKey | null
+  sortDir: SortDir
+  onSort: (key: SortKey) => void
 }
 
-export function BOLTable({ data }: BOLTableProps) {
+/** A clickable header that toggles one-click sorting on its column. */
+function SortableHead({
+  label,
+  sortKey,
+  activeKey,
+  dir,
+  onSort,
+}: {
+  label: string
+  sortKey: SortKey
+  activeKey: SortKey | null
+  dir: SortDir
+  onSort: (key: SortKey) => void
+}) {
+  const active = activeKey === sortKey
+  const Icon = !active ? ChevronsUpDown : dir === "asc" ? ArrowUp : ArrowDown
+  return (
+    <TableHead>
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className={`inline-flex items-center gap-1 font-medium transition-colors hover:text-foreground ${
+          active ? "text-foreground" : ""
+        }`}
+      >
+        {label}
+        <Icon className={`h-3.5 w-3.5 ${active ? "text-foreground" : "text-muted-foreground/60"}`} />
+      </button>
+    </TableHead>
+  )
+}
+
+export function BOLTable({ data, sortKey, sortDir, onSort }: BOLTableProps) {
   return (
     <div className="rounded-lg border bg-card">
       <Table>
@@ -32,13 +70,13 @@ export function BOLTable({ data }: BOLTableProps) {
           <TableRow className="hover:bg-transparent">
             <TableHead className="w-10" />
             <TableHead className="min-w-[280px]">BOL / INVOICE</TableHead>
-            <TableHead>SUPPLIER</TableHead>
+            <SortableHead label="SUPPLIER" sortKey="supplier" activeKey={sortKey} dir={sortDir} onSort={onSort} />
             <TableHead className="text-center">CONTAINERS</TableHead>
-            <TableHead>STATUS</TableHead>
-            <TableHead>ETD</TableHead>
-            <TableHead>ATD</TableHead>
-            <TableHead>ETA</TableHead>
-            <TableHead>ATA</TableHead>
+            <SortableHead label="STATUS" sortKey="status" activeKey={sortKey} dir={sortDir} onSort={onSort} />
+            <SortableHead label="ETD" sortKey="etd" activeKey={sortKey} dir={sortDir} onSort={onSort} />
+            <SortableHead label="ATD" sortKey="atd" activeKey={sortKey} dir={sortDir} onSort={onSort} />
+            <SortableHead label="ETA" sortKey="eta" activeKey={sortKey} dir={sortDir} onSort={onSort} />
+            <SortableHead label="ATA" sortKey="ata" activeKey={sortKey} dir={sortDir} onSort={onSort} />
             <TableHead className="text-right">POS</TableHead>
           </TableRow>
         </TableHeader>

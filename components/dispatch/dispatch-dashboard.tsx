@@ -5,16 +5,28 @@ import { DispatchKPICards } from "./dispatch-kpi-cards"
 import { DispatchFilterBar } from "./dispatch-filter-bar"
 import { DispatchTable, type SortKey, type SortDir } from "./dispatch-table"
 import { getStatusStep } from "@/lib/status"
+import {
+  type DateFilters,
+  type DateFilterField,
+  matchesAllDateFilters,
+} from "@/components/shared/date-range-filter"
 import type { DispatchContainer } from "@/lib/dispatch-data"
 
 interface DispatchDashboardProps {
   initialData: DispatchContainer[]
 }
 
+// Dispatcher rows are all Arrived, so only the actual dates are meaningful here.
+const DISPATCH_DATE_FIELDS: DateFilterField[] = [
+  { key: "atd", label: "ATD" },
+  { key: "ata", label: "ATA" },
+]
+
 export function DispatchDashboard({ initialData }: DispatchDashboardProps) {
   const [search, setSearch] = useState("")
   const [supplierFilter, setSupplierFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
+  const [dateFilters, setDateFilters] = useState<DateFilters>({})
   const [sortKey, setSortKey] = useState<SortKey | null>(null)
   const [sortDir, setSortDir] = useState<SortDir>("asc")
 
@@ -36,6 +48,9 @@ export function DispatchDashboard({ initialData }: DispatchDashboardProps) {
       if (statusFilter !== "all" && container.status !== statusFilter) {
         return false
       }
+      if (!matchesAllDateFilters(dateFilters, (key) => container[key as "atd" | "ata"])) {
+        return false
+      }
       if (search) {
         const searchLower = search.toLowerCase()
         const matchesContainer = container.container.toLowerCase().includes(searchLower)
@@ -47,7 +62,7 @@ export function DispatchDashboard({ initialData }: DispatchDashboardProps) {
       }
       return true
     })
-  }, [initialData, supplierFilter, statusFilter, search])
+  }, [initialData, supplierFilter, statusFilter, search, dateFilters])
 
   const sortedData = useMemo(() => {
     if (!sortKey) return filteredData
@@ -101,6 +116,9 @@ export function DispatchDashboard({ initialData }: DispatchDashboardProps) {
         onStatusFilterChange={setStatusFilter}
         supplierOptions={supplierOptions}
         statusOptions={statusOptions}
+        dateFields={DISPATCH_DATE_FIELDS}
+        dateFilters={dateFilters}
+        onDateFiltersApply={setDateFilters}
         count={filteredData.length}
       />
 
