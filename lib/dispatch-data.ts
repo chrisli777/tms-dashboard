@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
-import { deriveTrackingStatus } from "@/lib/status"
+import { effectiveStatus } from "@/lib/status"
 
 /* ── Types ── */
 
@@ -15,6 +15,14 @@ export interface DispatchContainer {
   customer: string
   etd: string
   eta: string
+  // Per-container tracking dates, used for the manual ATD/ATA editor and cell
+  // coloring on the container detail page.
+  etd_original: string | null
+  atd: string | null
+  eta_original: string | null
+  ata: string | null
+  /** Manual post-arrival dispatch stage (null = defaults to Arrived). */
+  dispatch_status: string | null
   totalQty: number
   totalWeight: number
   totalAmount: number
@@ -46,8 +54,11 @@ interface ViewRow {
   etd: string | null
   eta: string | null
   status: string | null
+  etd_original: string | null
   atd: string | null
+  eta_original: string | null
   ata: string | null
+  dispatch_status: string | null
 }
 
 /* ── Helpers ── */
@@ -66,7 +77,7 @@ function groupRowsToContainers(rows: ViewRow[]): DispatchContainer[] {
         id: containerName,
         container: containerName,
         type: r.type ?? "",
-        status: deriveTrackingStatus({ atd: r.atd, ata: r.ata }),
+        status: effectiveStatus({ atd: r.atd, ata: r.ata, dispatch_status: r.dispatch_status }),
         shipmentId: r.bl_no ?? r.invoice ?? "",
         invoice: r.invoice ?? "",
         bol: r.bl_no ?? "",
@@ -74,6 +85,11 @@ function groupRowsToContainers(rows: ViewRow[]): DispatchContainer[] {
         customer: r.customer ?? "",
         etd: r.etd ?? "",
         eta: r.eta ?? "",
+        etd_original: r.etd_original ?? null,
+        atd: r.atd ?? null,
+        eta_original: r.eta_original ?? null,
+        ata: r.ata ?? null,
+        dispatch_status: r.dispatch_status ?? null,
         totalQty: 0,
         totalWeight: 0,
         totalAmount: 0,

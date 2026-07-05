@@ -11,7 +11,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { ChevronRight } from "lucide-react"
-import { StatusBadge } from "@/components/ui/status-badge"
+import { DispatchStatusSelect } from "./dispatch-status-select"
 import type { DispatchContainer } from "@/lib/dispatch-data"
 
 interface DispatchTableProps {
@@ -88,7 +88,11 @@ export function DispatchTable({ data }: DispatchTableProps) {
                   <span className="font-medium text-primary">{container.supplier}</span>
                 </TableCell>
                 <TableCell>
-                  <StatusBadge status={container.status} />
+                  <DispatchStatusSelect
+                    container={container.container}
+                    bol={container.bol}
+                    status={container.status}
+                  />
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {formatDate(container.etd)}

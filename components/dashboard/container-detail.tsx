@@ -12,20 +12,13 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { StatusBadge } from "@/components/ui/status-badge"
+import { TrackingDateCell } from "./tracking-date-cell"
+import { ManualTrackingEditor } from "./manual-tracking-editor"
+import { etdCellState, etaCellState } from "@/lib/tracking-rules"
 import type { DispatchContainer } from "@/lib/dispatch-data"
 
 interface ContainerDetailProps {
   container: DispatchContainer
-}
-
-function formatDate(dateStr: string) {
-  if (!dateStr) return "—"
-  const date = new Date(dateStr + "T00:00:00")
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  })
 }
 
 function formatCurrency(value: number) {
@@ -51,10 +44,22 @@ export function ContainerDetail({ container }: ContainerDetailProps) {
             BOL: {container.bol}
           </Link>
           <span className="text-muted-foreground">{container.supplier}</span>
-          <span className="text-muted-foreground">
-            ETA: {formatDate(container.eta)}
+          <span className="flex items-center gap-1.5 text-muted-foreground">
+            <span className="font-semibold">ETD/ATD:</span>
+            <TrackingDateCell state={etdCellState(container)} kind="etd" inline />
+          </span>
+          <span className="flex items-center gap-1.5 text-muted-foreground">
+            <span className="font-semibold">ETA/ATA:</span>
+            <TrackingDateCell state={etaCellState(container)} kind="eta" inline />
           </span>
           <StatusBadge status={container.status} />
+          <ManualTrackingEditor
+            container={container.container}
+            bol={container.bol}
+            atd={container.atd}
+            ata={container.ata}
+            label="Edit dates"
+          />
         </div>
       </div>
 

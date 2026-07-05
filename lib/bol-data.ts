@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
-import { deriveTrackingStatus, representativeStatus } from "@/lib/status"
+import { effectiveStatus, representativeStatus } from "@/lib/status"
 
 /* ── Types ── */
 
@@ -26,6 +26,8 @@ export interface ContainerGroup {
   eta: string | null
   eta_original: string | null
   ata: string | null
+  /** Manual post-arrival dispatch stage (set in the Dispatcher). */
+  dispatch_status: string | null
 }
 
 export interface BOLSummary {
@@ -72,6 +74,7 @@ interface ViewRow {
   atd: string | null
   eta_original: string | null
   ata: string | null
+  dispatch_status: string | null
 }
 
 /* ── Helpers ── */
@@ -99,7 +102,7 @@ function groupRowsToBOLs(rows: ViewRow[]): BOLSummary[] {
         customer: r.customer ?? "",
         containerCount: 0,
         // Derived below from the container statuses once grouping is done.
-        status: deriveTrackingStatus({ atd: r.atd, ata: r.ata }),
+        status: effectiveStatus({ atd: r.atd, ata: r.ata, dispatch_status: r.dispatch_status }),
         etd: r.etd ?? "",
         eta: r.eta ?? "",
         etd_original: r.etd_original ?? null,
@@ -124,7 +127,7 @@ function groupRowsToBOLs(rows: ViewRow[]): BOLSummary[] {
         id: containerName,
         container: containerName,
         type: r.type ?? "",
-        status: deriveTrackingStatus({ atd: r.atd, ata: r.ata }),
+        status: effectiveStatus({ atd: r.atd, ata: r.ata, dispatch_status: r.dispatch_status }),
         items: [],
         etd: r.etd ?? null,
         etd_original: r.etd_original ?? null,
@@ -132,6 +135,7 @@ function groupRowsToBOLs(rows: ViewRow[]): BOLSummary[] {
         eta: r.eta ?? null,
         eta_original: r.eta_original ?? null,
         ata: r.ata ?? null,
+        dispatch_status: r.dispatch_status ?? null,
       })
     }
 

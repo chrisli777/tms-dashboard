@@ -22,6 +22,19 @@ export function StatusBadge({ status }: { status: string }) {
       className: "border-slate-200 bg-slate-50 text-slate-600",
       dot: "bg-slate-400",
     },
+    // Manual post-arrival dispatch stages.
+    Cleared: {
+      className: "border-blue-200 bg-blue-50 text-blue-700",
+      dot: "bg-blue-500",
+    },
+    Scheduled: {
+      className: "border-teal-200 bg-teal-50 text-teal-700",
+      dot: "bg-teal-500",
+    },
+    Closed: {
+      className: "border-slate-300 bg-slate-100 text-slate-700",
+      dot: "bg-slate-500",
+    },
   }
 
   const style = styles[label] ?? {

@@ -15,6 +15,7 @@ import { Check, ChevronRight } from "lucide-react"
 import { StatusBadge } from "@/components/ui/status-badge"
 import { STATUS_STEPS, getStatusStep } from "@/lib/status"
 import { TrackingDateCell } from "./tracking-date-cell"
+import { ManualTrackingEditor } from "./manual-tracking-editor"
 import { etdCellState, etaCellState } from "@/lib/tracking-rules"
 import type { BOLSummary } from "@/lib/bol-data"
 
@@ -171,11 +172,11 @@ export function BOLDetail({ summary }: BOLDetailProps) {
             <Card key={ctr.container}>
               <CardContent className="p-0">
                 {/* Container header */}
-                <Link
-                  href={`/container/${ctr.id}?from=${encodeURIComponent(`/bol/${summary.bol}`)}`}
-                  className="flex items-center justify-between border-b px-5 py-3.5 transition-colors hover:bg-accent/50"
-                >
-                  <div className="flex items-center gap-3">
+                <div className="flex items-center justify-between border-b px-5 py-3.5">
+                  <Link
+                    href={`/container/${ctr.id}?from=${encodeURIComponent(`/bol/${summary.bol}`)}`}
+                    className="flex items-center gap-3 transition-opacity hover:opacity-80"
+                  >
                     <svg xmlns="http://www.w3.org/2000/svg" className="size-4 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
                     <span className="font-mono text-sm font-semibold text-foreground">
                       {ctr.container}
@@ -187,7 +188,7 @@ export function BOLDetail({ summary }: BOLDetailProps) {
                       {ctr.type}
                     </Badge>
                     <StatusBadge status={ctr.status} />
-                  </div>
+                  </Link>
                   <div className="flex items-center gap-4">
                     <div className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">
                       <span className="font-semibold">ETD/ATD:</span>
@@ -197,12 +198,24 @@ export function BOLDetail({ summary }: BOLDetailProps) {
                       <span className="font-semibold">ETA/ATA:</span>
                       <TrackingDateCell state={etaCellState(ctr)} kind="eta" inline />
                     </div>
+                    <ManualTrackingEditor
+                      container={ctr.container}
+                      bol={summary.bol}
+                      atd={ctr.atd}
+                      ata={ctr.ata}
+                    />
                     <span className="text-xs text-muted-foreground">
                       {ctr.items.length} {ctr.items.length === 1 ? "SKU" : "SKUs"}
                     </span>
-                    <ChevronRight className="size-4 text-muted-foreground" />
+                    <Link
+                      href={`/container/${ctr.id}?from=${encodeURIComponent(`/bol/${summary.bol}`)}`}
+                      className="text-muted-foreground transition-colors hover:text-foreground"
+                      aria-label={`Open container ${ctr.container}`}
+                    >
+                      <ChevronRight className="size-4" />
+                    </Link>
                   </div>
-                </Link>
+                </div>
                 {/* Items table */}
                 <Table>
                   <TableHeader>
