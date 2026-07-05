@@ -62,6 +62,10 @@ interface WMSResponse {
   receivers?: Receiver[]
 }
 
+// This route fans out many upstream WMS requests, so give it room and never cache.
+export const maxDuration = 300
+export const dynamic = "force-dynamic"
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
   const startDate = searchParams.get("startDate")
@@ -78,76 +82,71 @@ export async function GET(request: NextRequest) {
 
   try {
     const allReceivers: Receiver[] = []
-    
+
     // Get OAuth token first
     const wmsToken = await getWmsToken()
-    
-    let pageNum = 1
-    let hasMore = true
 
-    while (hasMore) {
-      // Build RQL query: status==1 means received/completed
-      const rql = `readOnly.status==1;arrivalDate=ge=${startDate};arrivalDate=lt=${endDate}`
-      const encodedRql = encodeURIComponent(rql)
-      
-      // Build URL with optional receiverType filter (1=NCI, "normal"=0 or 2)
-      // For "normal" we need to make two requests and merge, or just filter after
-      // Since WMS API doesn't support OR in receiverType, we'll handle "normal" specially
-      let receiverTypeParam = ""
-      if (receiverType === "1") {
-        receiverTypeParam = "&receiverType=1"
-      }
-      // For "normal" and "all", we fetch all and filter later
-      
-      const wmsUrl = `https://secure-wms.com/inventory/receivers?detail=ReceiveItems&pgsiz=100&pgnum=${pageNum}&rql=${encodedRql}${receiverTypeParam}`
+    // Build RQL query: status==1 means received/completed
+    const rql = `readOnly.status==1;arrivalDate=ge=${startDate};arrivalDate=lt=${endDate}`
+    const encodedRql = encodeURIComponent(rql)
 
-      console.log(`[v0] Fetching WMS receivers, page ${pageNum}`)
-      console.log(`[v0] WMS URL: ${wmsUrl}`)
-      
-      const response = await fetch(wmsUrl, {
-        method: "GET",
-        headers: {
-          "Authorization": `Bearer ${wmsToken}`,
-          "Accept": "application/json",
-        },
-      })
+    // Optional receiverType filter (1=NCI). "normal"/"all" are filtered after fetch
+    // because the WMS API can't express an OR across receiver types.
+    const receiverTypeParam = receiverType === "1" ? "&receiverType=1" : ""
 
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error(`[v0] WMS API error: ${response.status} ${response.statusText}`)
-        console.error(`[v0] WMS API response: ${errorText}`)
-        throw new Error(`WMS API error: ${response.status} - ${errorText.substring(0, 200)}`)
-      }
+    // Large page size drastically reduces the number of round trips. The full
+    // catalog can be tens of thousands of receivers (e.g. ~27k/year), so a small
+    // page size + serial fetching would time out and silently truncate results,
+    // dropping whole suppliers/warehouses (this is why HX/WHI - Kent went missing).
+    const PAGE_SIZE = 500
+    const CONCURRENCY = 5
+    const MAX_PAGES = 300 // safety cap: up to 150k receivers
 
-      const data: WMSResponse = await response.json()
-      
-      // WMS API returns ResourceList (not receivers)
-      const receivers = data.ResourceList || data.receivers || []
-      const totalResults = data.TotalResults || data.totalResults || 0
-      
-      console.log(`[v0] WMS response totalResults: ${totalResults}`)
-      console.log(`[v0] WMS response receivers count: ${receivers.length}`)
-      
-      // Log first receiver to debug structure
-      if (receivers.length > 0) {
-        console.log(`[v0] First receiver sample:`, JSON.stringify(receivers[0], null, 2).substring(0, 800))
-      }
-      
-      if (receivers.length > 0) {
-        allReceivers.push(...receivers)
-        
-        // Check if there are more pages
-        if (receivers.length < 100) {
-          hasMore = false
-        } else {
-          pageNum++
+    const buildUrl = (pageNum: number) =>
+      `https://secure-wms.com/inventory/receivers?detail=ReceiveItems&pgsiz=${PAGE_SIZE}&pgnum=${pageNum}&rql=${encodedRql}${receiverTypeParam}`
+
+    // Fetch a single page with a couple of retries for transient errors, so a
+    // one-off hiccup or rate limit doesn't truncate the whole result set.
+    async function fetchPage(pageNum: number): Promise<{ receivers: Receiver[]; total: number }> {
+      let lastError = ""
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        const response = await fetch(buildUrl(pageNum), {
+          method: "GET",
+          headers: { Authorization: `Bearer ${wmsToken}`, Accept: "application/json" },
+        })
+        if (response.ok) {
+          const data: WMSResponse = await response.json()
+          return {
+            receivers: data.ResourceList || data.receivers || [],
+            total: data.TotalResults || data.totalResults || 0,
+          }
         }
-      } else {
-        hasMore = false
+        lastError = `${response.status} - ${(await response.text()).substring(0, 200)}`
+        console.error(`[v0] WMS page ${pageNum} attempt ${attempt} failed: ${lastError}`)
+        // brief backoff before retrying
+        await new Promise((r) => setTimeout(r, 400 * attempt))
       }
+      throw new Error(`WMS API error on page ${pageNum}: ${lastError}`)
     }
-    
-    console.log(`[v0] Total receivers fetched: ${allReceivers.length}`)
+
+    // Fetch page 1 to learn the total, then fetch the remaining pages in parallel batches.
+    const firstPage = await fetchPage(1)
+    allReceivers.push(...firstPage.receivers)
+
+    const totalResults = firstPage.total
+    const totalPages = Math.min(Math.ceil(totalResults / PAGE_SIZE), MAX_PAGES)
+    console.log(`[v0] WMS TotalResults=${totalResults}, fetching ${totalPages} pages of ${PAGE_SIZE}`)
+
+    const remainingPages: number[] = []
+    for (let p = 2; p <= totalPages; p++) remainingPages.push(p)
+
+    for (let i = 0; i < remainingPages.length; i += CONCURRENCY) {
+      const batch = remainingPages.slice(i, i + CONCURRENCY)
+      const results = await Promise.all(batch.map((p) => fetchPage(p)))
+      for (const r of results) allReceivers.push(...r.receivers)
+    }
+
+    console.log(`[v0] Total receivers fetched: ${allReceivers.length} (expected ${totalResults})`)
     
     // Filter by receiverType if "normal" (0 or 2)
     let typeFilteredReceivers = allReceivers
