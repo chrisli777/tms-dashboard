@@ -24,7 +24,7 @@ export default async function ContainerPage({ params }: ContainerPageProps) {
       title={container.container}
       description={`${container.type} Container`}
       icon={<Package className="h-8 w-8" />}
-      backHref={`/bol/${encodeURIComponent(container.bol)}`}
+      showBack
     >
       <ContainerDetail container={container} />
     </SidebarLayout>
