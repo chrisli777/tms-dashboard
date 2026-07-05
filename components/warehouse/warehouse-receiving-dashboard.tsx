@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { ScheduledReconcile } from "./scheduled-reconcile"
 
 interface ReceiverItem {
   sku: string
@@ -49,6 +50,8 @@ export function WarehouseReceivingDashboard() {
   const [data, setData] = useState<ApiResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set())
+  // Bumped on every successful fetch so the reconcile panel re-runs matching.
+  const [fetchToken, setFetchToken] = useState(0)
 
   // Get week start (Monday) and end (Sunday)
   const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 1 })
@@ -77,6 +80,8 @@ export function WarehouseReceivingDashboard() {
 
       const result: ApiResponse = await response.json()
       setData(result)
+      // Trigger reconciliation of Scheduled containers against this WMS export.
+      setFetchToken((t) => t + 1)
     } catch (err) {
       setError(String(err))
       console.error("[v0] Fetch error:", err)
@@ -97,6 +102,15 @@ export function WarehouseReceivingDashboard() {
 
   // Get unique suppliers from data
   const suppliers = [...new Set(data?.receivers?.map(r => r.supplier).filter(Boolean) || [])]
+
+  // WMS reference numbers + arrival dates, used to auto-match scheduled containers.
+  const wmsReferences = (data?.receivers || []).map(r => ({
+    referenceNum: r.referenceNum,
+    arrivalDate: r.arrivalDate,
+  }))
+
+  const rangeStart = format(weekStart, "yyyy-MM-dd")
+  const rangeEnd = format(weekEnd, "yyyy-MM-dd")
 
   // Filter receivers by warehouse, supplier, and search query
   const filteredReceivers = data?.receivers?.filter(receiver => {
@@ -226,6 +240,14 @@ export function WarehouseReceivingDashboard() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Scheduled containers + auto-reconciliation */}
+      <ScheduledReconcile
+        startDate={rangeStart}
+        endDate={rangeEnd}
+        references={wmsReferences}
+        fetchToken={fetchToken}
+      />
 
       {/* Error Message */}
       {error && (

@@ -71,7 +71,9 @@ export async function POST(request: Request) {
 
     let query = supabase
       .from("shipment_containers")
-      .update({ dispatch_status })
+      // Record when the stage changed so the Warehouse Receiving page can filter
+      // "Scheduled" containers by the time they were marked Scheduled.
+      .update({ dispatch_status, dispatch_status_changed_at: new Date().toISOString() })
       .eq("container_number", container)
 
     if (shipmentIds && shipmentIds.length > 0) {
