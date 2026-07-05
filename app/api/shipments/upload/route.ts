@@ -4,9 +4,11 @@ import Anthropic from "@anthropic-ai/sdk"
 import { createAdminClient } from "@/lib/supabase/admin"
 import {
   mergeContainerTracking,
+  mergeContainerRecord,
   etdCellState,
   etaCellState,
   type ParsedTrackingRecord,
+  type ParsedContainerRecord,
   type ContainerTracking,
 } from "@/lib/tracking-rules"
 
@@ -15,7 +17,7 @@ export const maxDuration = 60
 
 const MODEL = "claude-haiku-4-5-20251001"
 
-/** Canonical tracking fields we extract from the spreadsheet. */
+/** Canonical tracking fields we extract from the HBL-style spreadsheet. */
 const FIELDS = [
   "hbl",
   "mbl",
@@ -30,15 +32,32 @@ const FIELDS = [
 type Field = (typeof FIELDS)[number]
 type ColumnMap = Record<Field, string | null>
 
+type ReportFormat = "hbl" | "container"
+
 interface ParsedSheet {
   headers: string[]
   rows: unknown[][]
 }
 
+/** A unified preview row shared by both report formats. */
+interface PreviewRow {
+  /** Primary label — the HBL/BOL number or the container number. */
+  label: string
+  /** Secondary label — the MBL for HBL reports, otherwise null. */
+  sublabel: string | null
+  vessel: string | null
+  matchedBy: "HBL" | "MBL" | "Container" | null
+  matched: boolean
+  containerCount: number
+  parsed: ParsedTrackingRecord | ParsedContainerRecord
+  before: { etd: ReturnType<typeof etdCellState>; eta: ReturnType<typeof etaCellState>; status: string | null }
+  after: { etd: ReturnType<typeof etdCellState>; eta: ReturnType<typeof etaCellState>; status: string | null }
+}
+
 /**
  * Read the workbook and locate the header row (the first row that looks like
- * column titles — i.e. contains an HBL / B/L style header). Returns the header
- * labels plus the data rows beneath them.
+ * column titles — i.e. contains an HBL / B/L or Container header alongside a
+ * date column). Returns the header labels plus the data rows beneath them.
  */
 function parseWorkbook(buffer: ArrayBuffer): ParsedSheet {
   const wb = XLSX.read(buffer, { type: "array", cellDates: true })
@@ -66,17 +85,31 @@ function norm(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]/g, "")
 }
 
+function isHblHeader(c: string): boolean {
+  return c === "hbl" || c === "hbol" || c.includes("houseb")
+}
+
+function isContainerHeader(c: string): boolean {
+  return c === "container" || c.includes("containerno") || c.includes("containernumber")
+}
+
 /** Find the header row: the row (within the first 15) most likely to be titles. */
 function findHeaderRow(grid: unknown[][]): number {
   for (let i = 0; i < Math.min(grid.length, 15); i++) {
     const cells = (grid[i] ?? []).map((c) => norm(c == null ? "" : String(c)))
-    const hasHbl = cells.some(
-      (c) => c === "hbl" || c.includes("houseb") || c === "hbol",
-    )
+    const hasKey = cells.some((c) => isHblHeader(c) || isContainerHeader(c))
     const hasDateCol = cells.some((c) => c.includes("etd") || c.includes("eta"))
-    if (hasHbl && hasDateCol) return i
+    if (hasKey && hasDateCol) return i
   }
   return 0
+}
+
+/** Decide which report format this file is, based on its headers. */
+function detectFormat(headers: string[]): ReportFormat {
+  const cells = headers.map(norm)
+  if (cells.some(isHblHeader)) return "hbl"
+  if (cells.some(isContainerHeader)) return "container"
+  return "hbl"
 }
 
 /* ── Deterministic synonym matching (fallback / merge with Claude) ── */
@@ -181,7 +214,9 @@ Example: {"hbl":"HBL","mbl":"MBL","vesselOriginalEtd":"Vessel Original ETD","rev
   }
 }
 
-/** Build tracking records deterministically from the rows using the column map. */
+const asStr = (v: unknown) => (v == null ? null : String(v).trim() || null)
+
+/** Build HBL tracking records deterministically from the rows using the column map. */
 function extractRecords(sheet: ParsedSheet, map: ColumnMap): ParsedTrackingRecord[] {
   const idx = Object.fromEntries(
     FIELDS.map((f) => [f, map[f] ? sheet.headers.indexOf(map[f] as string) : -1]),
@@ -190,25 +225,168 @@ function extractRecords(sheet: ParsedSheet, map: ColumnMap): ParsedTrackingRecor
   if (idx.hbl < 0) return []
 
   const cell = (row: unknown[], i: number) => (i >= 0 ? row[i] ?? null : null)
-  const str = (v: unknown) => (v == null ? null : String(v).trim() || null)
 
   const records: ParsedTrackingRecord[] = []
   for (const row of sheet.rows) {
-    const hbl = str(cell(row, idx.hbl))
+    const hbl = asStr(cell(row, idx.hbl))
     if (!hbl) continue
     records.push({
       hbl,
-      mbl: str(cell(row, idx.mbl)),
+      mbl: asStr(cell(row, idx.mbl)),
       vesselOriginalEtd: cell(row, idx.vesselOriginalEtd) as string | null,
       revisedEtd: cell(row, idx.revisedEtd) as string | null,
       atd: cell(row, idx.atd) as string | null,
       vesselOriginalEta: cell(row, idx.vesselOriginalEta) as string | null,
       revisedEta: cell(row, idx.revisedEta) as string | null,
       ata: cell(row, idx.ata) as string | null,
-      vessel: str(cell(row, idx.vessel)),
+      vessel: asStr(cell(row, idx.vessel)),
     })
   }
   return records
+}
+
+/**
+ * Build container-keyed records from a container-based forwarder report. The
+ * ETA comes from the ETA column; the actual arrival (ATA) is taken from the
+ * "Available Date" column.
+ */
+function extractContainerRecords(sheet: ParsedSheet): ParsedContainerRecord[] {
+  const containerIdx = sheet.headers.findIndex((h) => isContainerHeader(norm(h)))
+  const etaIdx = sheet.headers.findIndex((h) => norm(h) === "eta")
+  const availIdx = sheet.headers.findIndex((h) => {
+    const n = norm(h)
+    return n.includes("availabledate") || n === "available"
+  })
+  if (containerIdx < 0) return []
+
+  const cell = (row: unknown[], i: number) => (i >= 0 ? row[i] ?? null : null)
+
+  const records: ParsedContainerRecord[] = []
+  for (const row of sheet.rows) {
+    const container = asStr(cell(row, containerIdx))
+    if (!container) continue
+    records.push({
+      container,
+      eta: cell(row, etaIdx) as string | null,
+      ata: cell(row, availIdx) as string | null,
+    })
+  }
+  return records
+}
+
+/** Build preview rows for the HBL format (matched against shipments.bol_number). */
+async function buildHblPreview(
+  supabase: ReturnType<typeof createAdminClient>,
+  records: ParsedTrackingRecord[],
+): Promise<PreviewRow[]> {
+  return Promise.all(
+    records.map(async (rec) => {
+      const hbl = rec.hbl.trim()
+      const mbl = rec.mbl?.trim() || null
+
+      // Match the House B/L against shipments.bol_number first; if nothing
+      // matches, fall back to the Master B/L (some backends store the MBL
+      // in bol_number). The whole BOL — and all its containers — is updated.
+      let { data: shipments } = await supabase
+        .from("shipments")
+        .select("id, bol_number")
+        .eq("bol_number", hbl)
+
+      let matchedBy: PreviewRow["matchedBy"] = (shipments?.length ?? 0) > 0 ? "HBL" : null
+
+      if ((shipments?.length ?? 0) === 0 && mbl) {
+        const res = await supabase
+          .from("shipments")
+          .select("id, bol_number")
+          .eq("bol_number", mbl)
+        shipments = res.data
+        matchedBy = (shipments?.length ?? 0) > 0 ? "MBL" : null
+      }
+
+      const shipmentIds = (shipments ?? []).map((s) => s.id as string)
+
+      let containers: (ContainerTracking & { id: string })[] = []
+      if (shipmentIds.length > 0) {
+        const { data: ctrs } = await supabase
+          .from("shipment_containers")
+          .select("id, etd, etd_original, atd, eta, eta_original, ata, tracking_status")
+          .in("shipment_id", shipmentIds)
+        containers = (ctrs ?? []) as (ContainerTracking & { id: string })[]
+      }
+
+      const sample = containers[0] ?? {}
+      const merged = mergeContainerTracking(sample, rec)
+
+      return {
+        label: hbl,
+        sublabel: mbl,
+        vessel: rec.vessel ?? null,
+        matchedBy,
+        matched: shipmentIds.length > 0,
+        containerCount: containers.length,
+        parsed: rec,
+        before: {
+          etd: etdCellState(sample),
+          eta: etaCellState(sample),
+          status: sample.tracking_status ?? null,
+        },
+        after: {
+          etd: etdCellState(merged),
+          eta: etaCellState(merged),
+          status: merged.tracking_status,
+        },
+      }
+    }),
+  )
+}
+
+/** Build preview rows for the container format (matched on container_number). */
+async function buildContainerPreview(
+  supabase: ReturnType<typeof createAdminClient>,
+  records: ParsedContainerRecord[],
+): Promise<PreviewRow[]> {
+  const wanted = Array.from(
+    new Set(records.map((r) => r.container.trim().toUpperCase()).filter(Boolean)),
+  )
+
+  const byNumber = new Map<string, ContainerTracking & { id: string }>()
+  if (wanted.length > 0) {
+    const { data: ctrs } = await supabase
+      .from("shipment_containers")
+      .select("id, container_number, etd, etd_original, atd, eta, eta_original, ata, tracking_status")
+      .in("container_number", wanted)
+    for (const c of ctrs ?? []) {
+      byNumber.set(String((c as { container_number: string }).container_number).toUpperCase(), c as ContainerTracking & { id: string })
+    }
+  }
+
+  return records.map((rec) => {
+    const key = rec.container.trim().toUpperCase()
+    const existing = byNumber.get(key)
+    const sample = existing ?? {}
+    const merged = mergeContainerRecord(sample, rec)
+    const matched = !!existing
+
+    return {
+      label: rec.container.trim(),
+      sublabel: null,
+      vessel: null,
+      matchedBy: matched ? "Container" : null,
+      matched,
+      containerCount: matched ? 1 : 0,
+      parsed: rec,
+      before: {
+        etd: etdCellState(sample),
+        eta: etaCellState(sample),
+        status: (sample as ContainerTracking).tracking_status ?? null,
+      },
+      after: {
+        etd: etdCellState(merged),
+        eta: etaCellState(merged),
+        status: merged.tracking_status,
+      },
+    }
+  })
 }
 
 export async function POST(request: Request) {
@@ -224,87 +402,45 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "The file appears to be empty" }, { status: 400 })
     }
 
-    const map = await resolveColumnMap(sheet.headers)
-    if (!map.hbl) {
-      return NextResponse.json(
-        { error: "Could not find an HBL / House B/L column in the file" },
-        { status: 422 },
-      )
-    }
-
-    const records = extractRecords(sheet, map)
-    if (records.length === 0) {
-      return NextResponse.json(
-        { error: "No HBL rows could be extracted from the file" },
-        { status: 422 },
-      )
-    }
-
     const supabase = createAdminClient()
+    const format = detectFormat(sheet.headers)
 
-    const preview = await Promise.all(
-      records.map(async (rec) => {
-        const hbl = rec.hbl.trim()
-        const mbl = rec.mbl?.trim() || null
+    let preview: PreviewRow[]
+    let recordCount: number
 
-        // Match the House B/L against shipments.bol_number first; if nothing
-        // matches, fall back to the Master B/L (some backends store the MBL
-        // in bol_number). The whole BOL — and all its containers — is updated.
-        let { data: shipments } = await supabase
-          .from("shipments")
-          .select("id, bol_number")
-          .eq("bol_number", hbl)
-
-        let matchedBy: "HBL" | "MBL" | null = (shipments?.length ?? 0) > 0 ? "HBL" : null
-
-        if ((shipments?.length ?? 0) === 0 && mbl) {
-          const res = await supabase
-            .from("shipments")
-            .select("id, bol_number")
-            .eq("bol_number", mbl)
-          shipments = res.data
-          matchedBy = (shipments?.length ?? 0) > 0 ? "MBL" : null
-        }
-
-        const shipmentIds = (shipments ?? []).map((s) => s.id as string)
-
-        let containers: (ContainerTracking & { id: string })[] = []
-        if (shipmentIds.length > 0) {
-          const { data: ctrs } = await supabase
-            .from("shipment_containers")
-            .select("id, etd, etd_original, atd, eta, eta_original, ata, tracking_status")
-            .in("shipment_id", shipmentIds)
-          containers = (ctrs ?? []) as (ContainerTracking & { id: string })[]
-        }
-
-        const sample = containers[0] ?? {}
-        const merged = mergeContainerTracking(sample, rec)
-
-        return {
-          hbl,
-          mbl,
-          matchedBy,
-          vessel: rec.vessel ?? null,
-          matched: shipmentIds.length > 0,
-          containerCount: containers.length,
-          parsed: rec,
-          before: {
-            etd: etdCellState(sample),
-            eta: etaCellState(sample),
-            status: sample.tracking_status ?? null,
-          },
-          after: {
-            etd: etdCellState(merged),
-            eta: etaCellState(merged),
-            status: merged.tracking_status,
-          },
-        }
-      }),
-    )
+    if (format === "container") {
+      const records = extractContainerRecords(sheet)
+      if (records.length === 0) {
+        return NextResponse.json(
+          { error: "No container rows could be extracted from the file" },
+          { status: 422 },
+        )
+      }
+      recordCount = records.length
+      preview = await buildContainerPreview(supabase, records)
+    } else {
+      const map = await resolveColumnMap(sheet.headers)
+      if (!map.hbl) {
+        return NextResponse.json(
+          { error: "Could not find an HBL / House B/L or Container column in the file" },
+          { status: 422 },
+        )
+      }
+      const records = extractRecords(sheet, map)
+      if (records.length === 0) {
+        return NextResponse.json(
+          { error: "No HBL rows could be extracted from the file" },
+          { status: 422 },
+        )
+      }
+      recordCount = records.length
+      preview = await buildHblPreview(supabase, records)
+    }
 
     return NextResponse.json({
       fileName: file.name,
-      recordCount: records.length,
+      format,
+      recordCount,
       matchedCount: preview.filter((p) => p.matched).length,
       preview,
     })

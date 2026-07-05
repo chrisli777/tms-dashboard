@@ -38,6 +38,21 @@ export interface ParsedTrackingRecord {
   vessel?: string | null
 }
 
+/**
+ * One row extracted from a *container-keyed* forwarder report (e.g. Savino Del
+ * Bene). This format has no HBL/MBL, no ETD and no revised dates — it is matched
+ * directly on the container number and only carries an ETA plus an actual
+ * arrival taken from the "Available Date" column.
+ */
+export interface ParsedContainerRecord {
+  /** Container number — the match key against shipment_containers.container_number. */
+  container: string
+  /** Estimated arrival (the report's ETA column). */
+  eta?: string | null
+  /** Actual arrival, taken from the forwarder's "Available Date" column. */
+  ata?: string | null
+}
+
 /** The persisted per-container tracking columns. */
 export interface ContainerTracking {
   etd: string | null
@@ -101,6 +116,40 @@ export function mergeContainerTracking(
     etd_original,
     atd: nextAtd,
     eta,
+    eta_original,
+    ata: nextAta,
+    tracking_status,
+  }
+}
+
+/**
+ * Merge a container-keyed forwarder report row (see {@link ParsedContainerRecord})
+ * into an existing container tracking row. Only ETA and ATA are touched; ETD/ATD
+ * are preserved. Because this format has no "revised" concept, eta and
+ * eta_original are kept in sync so no false red "revised" styling appears.
+ */
+export function mergeContainerRecord(
+  existing: Partial<ContainerTracking>,
+  rec: ParsedContainerRecord,
+): ContainerTracking {
+  const eta = normalizeDate(rec.eta)
+  const ata = normalizeDate(rec.ata)
+
+  const nextEta = eta ?? existing.eta ?? null
+  const eta_original = eta ?? existing.eta_original ?? existing.eta ?? null
+  const nextAta = ata ?? existing.ata ?? null
+  const nextAtd = existing.atd ?? null
+
+  // ATA (Available Date) has top priority -> Arrived, even without an ATD.
+  let tracking_status = "PENDING"
+  if (nextAtd) tracking_status = "IN_TRANSIT"
+  if (nextAta) tracking_status = "CLEARED" // displayed as "Arrived"
+
+  return {
+    etd: existing.etd ?? null,
+    etd_original: existing.etd_original ?? null,
+    atd: nextAtd,
+    eta: nextEta,
     eta_original,
     ata: nextAta,
     tracking_status,

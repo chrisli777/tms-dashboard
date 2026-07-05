@@ -15,22 +15,29 @@ import { Button } from "@/components/ui/button"
 import { Upload, FileSpreadsheet, Loader2, CheckCircle2, AlertCircle, ArrowRight } from "lucide-react"
 import { TrackingDateCell } from "./tracking-date-cell"
 import { statusLabel } from "@/lib/status"
-import type { DateCellState, ParsedTrackingRecord } from "@/lib/tracking-rules"
+import type {
+  DateCellState,
+  ParsedTrackingRecord,
+  ParsedContainerRecord,
+} from "@/lib/tracking-rules"
+
+type ReportFormat = "hbl" | "container"
 
 interface PreviewRow {
-  hbl: string
-  mbl: string | null
-  matchedBy: "HBL" | "MBL" | null
+  label: string
+  sublabel: string | null
+  matchedBy: "HBL" | "MBL" | "Container" | null
   vessel: string | null
   matched: boolean
   containerCount: number
-  parsed: ParsedTrackingRecord
+  parsed: ParsedTrackingRecord | ParsedContainerRecord
   before: { etd: DateCellState; eta: DateCellState; status: string | null }
   after: { etd: DateCellState; eta: DateCellState; status: string | null }
 }
 
 interface PreviewResponse {
   fileName: string
+  format: ReportFormat
   recordCount: number
   matchedCount: number
   preview: PreviewRow[]
@@ -90,7 +97,7 @@ export function UploadTrackingDialog() {
       const res = await fetch("/api/shipments/upload/apply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ records }),
+        body: JSON.stringify({ records, format: preview.format }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? "Failed to apply updates")
@@ -115,8 +122,10 @@ export function UploadTrackingDialog() {
         <DialogHeader>
           <DialogTitle>Upload Shipment Tracking File</DialogTitle>
           <DialogDescription>
-            Upload an Excel or CSV departure / arrival notice. Claude extracts the
-            HBL, ETD/ATD and ETA/ATA, then you confirm before anything is saved.
+            Upload an Excel or CSV departure / arrival notice. The format is
+            detected automatically — HBL reports match by House/Master B/L,
+            container reports match by container number. You confirm before
+            anything is saved.
           </DialogDescription>
         </DialogHeader>
 
@@ -142,7 +151,7 @@ export function UploadTrackingDialog() {
                   Parsing file with Claude…
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  Extracting HBL, ETD/ATD and ETA/ATA
+                  Detecting format and extracting tracking dates
                 </span>
               </>
             ) : (
@@ -172,16 +181,21 @@ export function UploadTrackingDialog() {
             <div className="flex items-center justify-between gap-2 text-sm">
               <span className="truncate font-medium text-foreground">{preview.fileName}</span>
               <span className="shrink-0 text-muted-foreground">
-                {preview.matchedCount} of {preview.recordCount} HBL matched
+                {preview.matchedCount} of {preview.recordCount}{" "}
+                {preview.format === "container" ? "containers" : "HBL"} matched
               </span>
             </div>
             <div className="h-[420px] min-w-0 overflow-auto rounded-md border bg-card">
               <table className="w-full min-w-[760px] text-xs">
                 <thead className="sticky top-0 z-10 bg-muted shadow-sm">
                   <tr className="text-left text-xs font-semibold tracking-wider text-muted-foreground">
-                    <th className="px-3 py-2">HBL / BOL</th>
+                    <th className="px-3 py-2">
+                      {preview.format === "container" ? "CONTAINER" : "HBL / BOL"}
+                    </th>
                     <th className="px-3 py-2 text-center">CTRS</th>
-                    <th className="px-3 py-2">ETD / ATD</th>
+                    {preview.format !== "container" && (
+                      <th className="px-3 py-2">ETD / ATD</th>
+                    )}
                     <th className="px-3 py-2">ETA / ATA</th>
                     <th className="px-3 py-2">STATUS</th>
                   </tr>
@@ -189,23 +203,27 @@ export function UploadTrackingDialog() {
                 <tbody className="bg-card">
                   {preview.preview.map((row) => (
                     <tr
-                      key={row.hbl}
+                      key={row.label}
                       className={`border-t bg-card ${row.matched ? "" : "opacity-50"}`}
                     >
                       <td className="px-3 py-2">
                         <span className="flex items-center gap-1.5 font-semibold text-foreground">
-                          {row.hbl}
+                          {row.label}
                           {row.matchedBy && (
                             <span className="rounded bg-emerald-100 px-1 py-0.5 text-[10px] font-medium text-emerald-700">
                               by {row.matchedBy}
                             </span>
                           )}
                         </span>
-                        {row.mbl && (
-                          <span className="block text-xs text-muted-foreground">MBL: {row.mbl}</span>
+                        {row.sublabel && (
+                          <span className="block text-xs text-muted-foreground">MBL: {row.sublabel}</span>
                         )}
                         {!row.matched && (
-                          <span className="text-xs text-destructive">No matching HBL / MBL</span>
+                          <span className="text-xs text-destructive">
+                            {preview.format === "container"
+                              ? "No matching container"
+                              : "No matching HBL / MBL"}
+                          </span>
                         )}
                         {row.vessel && (
                           <span className="block text-xs text-muted-foreground">{row.vessel}</span>
@@ -214,13 +232,15 @@ export function UploadTrackingDialog() {
                       <td className="px-3 py-2 text-center tabular-nums text-muted-foreground">
                         {row.containerCount}
                       </td>
-                      <td className="px-3 py-2">
-                        <div className="flex items-center gap-1.5">
-                          <TrackingDateCell state={row.before.etd} kind="etd" inline />
-                          <ArrowRight className="size-3 shrink-0 text-muted-foreground" />
-                          <TrackingDateCell state={row.after.etd} kind="etd" inline />
-                        </div>
-                      </td>
+                      {preview.format !== "container" && (
+                        <td className="px-3 py-2">
+                          <div className="flex items-center gap-1.5">
+                            <TrackingDateCell state={row.before.etd} kind="etd" inline />
+                            <ArrowRight className="size-3 shrink-0 text-muted-foreground" />
+                            <TrackingDateCell state={row.after.etd} kind="etd" inline />
+                          </div>
+                        </td>
+                      )}
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-1.5">
                           <TrackingDateCell state={row.before.eta} kind="eta" inline />
@@ -252,13 +272,24 @@ export function UploadTrackingDialog() {
           <div className="flex flex-col items-center gap-3 py-8 text-center">
             <CheckCircle2 className="size-10 text-emerald-600" />
             <p className="text-sm font-medium text-foreground">
-              Updated {result.updatedContainers} container
-              {result.updatedContainers === 1 ? "" : "s"} across {result.matchedBols} BOL
-              {result.matchedBols === 1 ? "" : "s"}.
+              {preview?.format === "container" ? (
+                <>
+                  Updated {result.updatedContainers} container
+                  {result.updatedContainers === 1 ? "" : "s"}.
+                </>
+              ) : (
+                <>
+                  Updated {result.updatedContainers} container
+                  {result.updatedContainers === 1 ? "" : "s"} across {result.matchedBols} BOL
+                  {result.matchedBols === 1 ? "" : "s"}.
+                </>
+              )}
             </p>
             {result.unmatched.length > 0 && (
               <p className="text-xs text-muted-foreground">
-                {result.unmatched.length} HBL had no matching BOL and were skipped.
+                {result.unmatched.length}{" "}
+                {preview?.format === "container" ? "container" : "HBL"}
+                {result.unmatched.length === 1 ? "" : "s"} had no match and were skipped.
               </p>
             )}
           </div>
