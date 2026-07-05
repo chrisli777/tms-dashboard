@@ -48,6 +48,27 @@ export async function POST(request: Request) {
       shipmentIds = (shipments ?? []).map((s) => s.id as string)
     }
 
+    // Enforce the state machine: the post-arrival stages (Cleared / Scheduled /
+    // Closed) may only be applied once the container has actually Arrived, i.e.
+    // it has a recorded ATA. Clearing back to "Arrived" (null) is always allowed.
+    if (dispatch_status !== null) {
+      let arrivalQuery = supabase
+        .from("shipment_containers")
+        .select("id, ata")
+        .eq("container_number", container)
+      if (shipmentIds && shipmentIds.length > 0) {
+        arrivalQuery = arrivalQuery.in("shipment_id", shipmentIds)
+      }
+      const { data: rows } = await arrivalQuery
+      const anyArrived = (rows ?? []).some((r) => r.ata != null)
+      if (!anyArrived) {
+        return NextResponse.json(
+          { error: "Container must be Arrived before it can be Cleared, Scheduled, or Closed." },
+          { status: 409 },
+        )
+      }
+    }
+
     let query = supabase
       .from("shipment_containers")
       .update({ dispatch_status })

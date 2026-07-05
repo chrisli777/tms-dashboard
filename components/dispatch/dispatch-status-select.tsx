@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { StatusBadge } from "@/components/ui/status-badge"
 import { DISPATCH_STATUS_OPTIONS } from "@/lib/status"
 
 interface DispatchStatusSelectProps {
@@ -17,6 +18,9 @@ interface DispatchStatusSelectProps {
   /** Current effective status label (Arrived / Cleared / Scheduled / Closed). */
   status: string
 }
+
+// The manual dispatch stages are only reachable once a container has Arrived.
+const EDITABLE_STATUSES = new Set<string>(DISPATCH_STATUS_OPTIONS)
 
 const DOT_CLASS: Record<string, string> = {
   Arrived: "bg-emerald-500",
@@ -38,6 +42,12 @@ export function DispatchStatusSelect({
   const router = useRouter()
   const [value, setValue] = useState(status)
   const [saving, setSaving] = useState(false)
+
+  // Not arrived yet (Pending / In Transit): the dispatch stages don't apply, so
+  // show the tracking status read-only. It becomes editable once it Arrives.
+  if (!EDITABLE_STATUSES.has(status)) {
+    return <StatusBadge status={status} />
+  }
 
   async function handleChange(next: string) {
     const prev = value
