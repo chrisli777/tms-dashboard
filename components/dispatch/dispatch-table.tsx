@@ -19,7 +19,11 @@ interface DispatchTableProps {
 }
 
 function formatDate(dateStr: string) {
-  const date = new Date(dateStr)
+  if (!dateStr) return "—"
+  // Parse as local midnight so the date is identical on server (UTC) and client
+  // (local tz). A bare "2026-02-05" would parse as UTC midnight and shift a day
+  // in negative-offset timezones, causing a hydration mismatch.
+  const date = new Date(dateStr + "T00:00:00")
   return date.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
