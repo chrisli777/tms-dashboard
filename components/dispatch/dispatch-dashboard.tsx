@@ -70,8 +70,16 @@ export function DispatchDashboard({ initialData }: DispatchDashboardProps) {
   }, [filteredData, sortKey, sortDir])
 
   function handleSort(key: SortKey) {
+    // Single-column sort with a three-state cycle:
+    // asc -> desc -> default (unsorted). Clicking a different column starts at asc.
     if (sortKey === key) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"))
+      if (sortDir === "asc") {
+        setSortDir("desc")
+      } else {
+        // Was descending: third click clears the sort back to default order.
+        setSortKey(null)
+        setSortDir("asc")
+      }
     } else {
       setSortKey(key)
       setSortDir("asc")
