@@ -172,7 +172,7 @@ export function BOLDetail({ summary }: BOLDetailProps) {
               <CardContent className="p-0">
                 {/* Container header */}
                 <Link
-                  href={`/container/${ctr.id}`}
+                  href={`/container/${ctr.id}?from=${encodeURIComponent(`/bol/${summary.bol}`)}`}
                   className="flex items-center justify-between border-b px-5 py-3.5 transition-colors hover:bg-accent/50"
                 >
                   <div className="flex items-center gap-3">

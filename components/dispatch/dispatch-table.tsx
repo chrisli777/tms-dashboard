@@ -58,14 +58,14 @@ export function DispatchTable({ data }: DispatchTableProps) {
               <TableRow
                 key={container.id}
                 className="group cursor-pointer hover:bg-muted/50"
-                onClick={() => router.push(`/container/${container.id}`)}
+                onClick={() => router.push(`/container/${container.id}?from=/dispatch`)}
               >
                 <TableCell>
                   <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
                 </TableCell>
                 <TableCell>
                   <Link
-                    href={`/container/${container.id}`}
+                    href={`/container/${container.id}?from=/dispatch`}
                     className="font-medium text-foreground hover:text-primary"
                   >
                     {container.container}
