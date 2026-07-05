@@ -29,7 +29,7 @@ export default async function ContainerPage({ params, searchParams }: ContainerP
   return (
     <SidebarLayout
       title={container.container}
-      description={`${container.type} Container`}
+      description="Container"
       icon={<Package className="h-8 w-8" />}
       backHref={backHref}
     >

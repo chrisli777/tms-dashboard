@@ -13,60 +13,58 @@ import { Search } from "lucide-react"
 interface DispatchFilterBarProps {
   search: string
   onSearchChange: (value: string) => void
+  supplierFilter: string
+  onSupplierFilterChange: (value: string) => void
   statusFilter: string
   onStatusFilterChange: (value: string) => void
-  typeFilter: string
-  onTypeFilterChange: (value: string) => void
-  typeOptions: string[]
-  counts: {
-    all: number
-  }
+  supplierOptions: string[]
+  statusOptions: string[]
+  count: number
 }
 
 export function DispatchFilterBar({
   search,
   onSearchChange,
+  supplierFilter,
+  onSupplierFilterChange,
   statusFilter,
   onStatusFilterChange,
-  typeFilter,
-  onTypeFilterChange,
-  typeOptions,
-  counts,
+  supplierOptions,
+  statusOptions,
+  count,
 }: DispatchFilterBarProps) {
-  const tabs = [
-    { value: "all", label: `Arrived & Ready to Dispatch (${counts.all})` },
-  ]
-
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-      {/* Status Tabs */}
-      <div className="flex gap-1 rounded-lg bg-muted p-1">
-        {tabs.map((tab) => (
-          <button
-            key={tab.value}
-            onClick={() => onStatusFilterChange(tab.value)}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-              statusFilter === tab.value
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      {/* Heading + count */}
+      <div className="rounded-lg bg-muted px-3 py-1.5 text-sm font-medium text-foreground">
+        Arrived &amp; Ready to Dispatch ({count})
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-3">
-        <Select value={typeFilter} onValueChange={onTypeFilterChange}>
-          <SelectTrigger className="w-[140px]">
-            <SelectValue placeholder="All Types" />
+      <div className="flex flex-wrap items-center gap-3">
+        <Select value={supplierFilter} onValueChange={onSupplierFilterChange}>
+          <SelectTrigger className="w-[160px]">
+            <SelectValue placeholder="All Suppliers" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Types</SelectItem>
-            {typeOptions.map((type) => (
-              <SelectItem key={type} value={type}>
-                {type}
+            <SelectItem value="all">All Suppliers</SelectItem>
+            {supplierOptions.map((supplier) => (
+              <SelectItem key={supplier} value={supplier}>
+                {supplier}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={statusFilter} onValueChange={onStatusFilterChange}>
+          <SelectTrigger className="w-[150px]">
+            <SelectValue placeholder="All Statuses" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Statuses</SelectItem>
+            {statusOptions.map((status) => (
+              <SelectItem key={status} value={status}>
+                {status}
               </SelectItem>
             ))}
           </SelectContent>

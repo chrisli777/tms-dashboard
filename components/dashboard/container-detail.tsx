@@ -10,10 +10,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
-import { StatusBadge } from "@/components/ui/status-badge"
 import { TrackingDateCell } from "./tracking-date-cell"
 import { ManualTrackingEditor } from "./manual-tracking-editor"
+import { DispatchStatusSelect } from "@/components/dispatch/dispatch-status-select"
 import { etdCellState, etaCellState } from "@/lib/tracking-rules"
 import type { DispatchContainer } from "@/lib/dispatch-data"
 
@@ -34,9 +33,6 @@ export function ContainerDetail({ container }: ContainerDetailProps) {
       {/* Info bar */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-4 text-sm">
-          <Badge variant="outline" className="text-sm font-normal">
-            {container.type}
-          </Badge>
           <Link
             href={`/bol/${encodeURIComponent(container.bol)}`}
             className="font-medium text-primary hover:underline"
@@ -52,7 +48,11 @@ export function ContainerDetail({ container }: ContainerDetailProps) {
             <span className="font-semibold">ETA/ATA:</span>
             <TrackingDateCell state={etaCellState(container)} kind="eta" inline />
           </span>
-          <StatusBadge status={container.status} />
+          <DispatchStatusSelect
+            container={container.container}
+            bol={container.bol}
+            status={container.status}
+          />
           <ManualTrackingEditor
             container={container.container}
             bol={container.bol}

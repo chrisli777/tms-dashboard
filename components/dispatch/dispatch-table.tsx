@@ -10,15 +10,21 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { ChevronRight } from "lucide-react"
+import { ChevronRight, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
 import { DispatchStatusSelect } from "./dispatch-status-select"
 import type { DispatchContainer } from "@/lib/dispatch-data"
 
+export type SortKey = "supplier" | "status" | "atd" | "ata"
+export type SortDir = "asc" | "desc"
+
 interface DispatchTableProps {
   data: DispatchContainer[]
+  sortKey: SortKey | null
+  sortDir: SortDir
+  onSort: (key: SortKey) => void
 }
 
-function formatDate(dateStr: string) {
+function formatDate(dateStr: string | null) {
   if (!dateStr) return "—"
   // Parse as local midnight so the date is identical on server (UTC) and client
   // (local tz). A bare "2026-02-05" would parse as UTC midnight and shift a day
@@ -31,9 +37,43 @@ function formatDate(dateStr: string) {
   })
 }
 
-export function DispatchTable({ data }: DispatchTableProps) {
+/** A clickable header that toggles one-click sorting on its column. */
+function SortableHead({
+  label,
+  sortKey,
+  activeKey,
+  dir,
+  onSort,
+  align = "left",
+}: {
+  label: string
+  sortKey: SortKey
+  activeKey: SortKey | null
+  dir: SortDir
+  onSort: (key: SortKey) => void
+  align?: "left" | "right"
+}) {
+  const active = activeKey === sortKey
+  const Icon = !active ? ChevronsUpDown : dir === "asc" ? ArrowUp : ArrowDown
+  return (
+    <TableHead className={align === "right" ? "text-right" : undefined}>
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className={`inline-flex items-center gap-1 font-medium transition-colors hover:text-foreground ${
+          active ? "text-foreground" : ""
+        } ${align === "right" ? "flex-row-reverse" : ""}`}
+      >
+        {label}
+        <Icon className={`h-3.5 w-3.5 ${active ? "text-foreground" : "text-muted-foreground/60"}`} />
+      </button>
+    </TableHead>
+  )
+}
+
+export function DispatchTable({ data, sortKey, sortDir, onSort }: DispatchTableProps) {
   const router = useRouter()
-  
+
   return (
     <div className="rounded-lg border bg-card">
       <Table>
@@ -41,19 +81,18 @@ export function DispatchTable({ data }: DispatchTableProps) {
           <TableRow className="hover:bg-transparent">
             <TableHead className="w-10"></TableHead>
             <TableHead>CONTAINER</TableHead>
-            <TableHead>TYPE</TableHead>
             <TableHead>BOL</TableHead>
-            <TableHead>SUPPLIER</TableHead>
-            <TableHead>STATUS</TableHead>
-            <TableHead>ETD</TableHead>
-            <TableHead>ETA</TableHead>
+            <SortableHead label="SUPPLIER" sortKey="supplier" activeKey={sortKey} dir={sortDir} onSort={onSort} />
+            <SortableHead label="STATUS" sortKey="status" activeKey={sortKey} dir={sortDir} onSort={onSort} />
+            <SortableHead label="ATD" sortKey="atd" activeKey={sortKey} dir={sortDir} onSort={onSort} />
+            <SortableHead label="ATA" sortKey="ata" activeKey={sortKey} dir={sortDir} onSort={onSort} />
             <TableHead className="text-right">QTY</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {data.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
+              <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
                 No containers found
               </TableCell>
             </TableRow>
@@ -76,11 +115,6 @@ export function DispatchTable({ data }: DispatchTableProps) {
                   </Link>
                 </TableCell>
                 <TableCell>
-                  <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
-                    {container.type}
-                  </span>
-                </TableCell>
-                <TableCell>
                   <Link
                     href={`/bol/${container.bol}`}
                     className="font-mono text-sm text-muted-foreground hover:text-primary"
@@ -99,10 +133,10 @@ export function DispatchTable({ data }: DispatchTableProps) {
                   />
                 </TableCell>
                 <TableCell className="text-muted-foreground">
-                  {formatDate(container.etd)}
+                  {formatDate(container.atd)}
                 </TableCell>
                 <TableCell className="text-muted-foreground">
-                  {formatDate(container.eta)}
+                  {formatDate(container.ata)}
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
                   {container.totalQty.toLocaleString()}

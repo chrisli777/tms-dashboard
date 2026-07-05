@@ -3,7 +3,8 @@
 import { useState, useMemo } from "react"
 import { DispatchKPICards } from "./dispatch-kpi-cards"
 import { DispatchFilterBar } from "./dispatch-filter-bar"
-import { DispatchTable } from "./dispatch-table"
+import { DispatchTable, type SortKey, type SortDir } from "./dispatch-table"
+import { getStatusStep } from "@/lib/status"
 import type { DispatchContainer } from "@/lib/dispatch-data"
 
 interface DispatchDashboardProps {
@@ -12,19 +13,27 @@ interface DispatchDashboardProps {
 
 export function DispatchDashboard({ initialData }: DispatchDashboardProps) {
   const [search, setSearch] = useState("")
+  const [supplierFilter, setSupplierFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
-  const [typeFilter, setTypeFilter] = useState("all")
+  const [sortKey, setSortKey] = useState<SortKey | null>(null)
+  const [sortDir, setSortDir] = useState<SortDir>("asc")
 
-  const typeOptions = useMemo(() => {
-    return [...new Set(initialData.map((c) => c.type))].sort()
+  const supplierOptions = useMemo(() => {
+    return [...new Set(initialData.map((c) => c.supplier).filter(Boolean))].sort()
+  }, [initialData])
+
+  const statusOptions = useMemo(() => {
+    return [...new Set(initialData.map((c) => c.status).filter(Boolean))].sort(
+      (a, b) => getStatusStep(a) - getStatusStep(b)
+    )
   }, [initialData])
 
   const filteredData = useMemo(() => {
     return initialData.filter((container) => {
-      if (statusFilter !== "all" && container.status !== statusFilter) {
+      if (supplierFilter !== "all" && container.supplier !== supplierFilter) {
         return false
       }
-      if (typeFilter !== "all" && container.type !== typeFilter) {
+      if (statusFilter !== "all" && container.status !== statusFilter) {
         return false
       }
       if (search) {
@@ -38,16 +47,36 @@ export function DispatchDashboard({ initialData }: DispatchDashboardProps) {
       }
       return true
     })
-  }, [initialData, statusFilter, typeFilter, search])
+  }, [initialData, supplierFilter, statusFilter, search])
 
-  const counts = useMemo(() => {
-    const filtered = initialData.filter(
-      (c) => typeFilter === "all" || c.type === typeFilter
-    )
-    return {
-      all: filtered.length,
+  const sortedData = useMemo(() => {
+    if (!sortKey) return filteredData
+    const arr = [...filteredData]
+    arr.sort((a, b) => {
+      let cmp = 0
+      if (sortKey === "supplier") {
+        cmp = a.supplier.localeCompare(b.supplier)
+      } else if (sortKey === "status") {
+        cmp = getStatusStep(a.status) - getStatusStep(b.status)
+      } else {
+        // atd / ata date columns: empty dates sort last.
+        const av = a[sortKey] ? new Date(a[sortKey] as string).getTime() : Number.POSITIVE_INFINITY
+        const bv = b[sortKey] ? new Date(b[sortKey] as string).getTime() : Number.POSITIVE_INFINITY
+        cmp = av - bv
+      }
+      return sortDir === "asc" ? cmp : -cmp
+    })
+    return arr
+  }, [filteredData, sortKey, sortDir])
+
+  function handleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"))
+    } else {
+      setSortKey(key)
+      setSortDir("asc")
     }
-  }, [initialData, typeFilter])
+  }
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-6">
@@ -58,16 +87,22 @@ export function DispatchDashboard({ initialData }: DispatchDashboardProps) {
       <DispatchFilterBar
         search={search}
         onSearchChange={setSearch}
+        supplierFilter={supplierFilter}
+        onSupplierFilterChange={setSupplierFilter}
         statusFilter={statusFilter}
         onStatusFilterChange={setStatusFilter}
-        typeFilter={typeFilter}
-        onTypeFilterChange={setTypeFilter}
-        typeOptions={typeOptions}
-        counts={counts}
+        supplierOptions={supplierOptions}
+        statusOptions={statusOptions}
+        count={filteredData.length}
       />
 
       {/* Table */}
-      <DispatchTable data={filteredData} />
+      <DispatchTable
+        data={sortedData}
+        sortKey={sortKey}
+        sortDir={sortDir}
+        onSort={handleSort}
+      />
     </div>
   )
 }
