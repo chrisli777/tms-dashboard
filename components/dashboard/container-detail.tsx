@@ -121,8 +121,6 @@ export function ContainerDetail({ container }: ContainerDetailProps) {
                 <TableHead>SKU</TableHead>
                 <TableHead>PO</TableHead>
                 <TableHead className="text-right">Qty</TableHead>
-                <TableHead className="text-right">Total</TableHead>
-                <TableHead className="text-right">Weight</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -141,12 +139,6 @@ export function ContainerDetail({ container }: ContainerDetailProps) {
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {item.qty.toLocaleString()}
-                  </TableCell>
-                  <TableCell className="text-right font-medium tabular-nums text-foreground">
-                    {formatCurrency(item.amount_usd)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums text-muted-foreground">
-                    {item.gw_kg.toLocaleString()} kg
                   </TableCell>
                 </TableRow>
               ))}

@@ -223,11 +223,6 @@ export function BOLDetail({ summary }: BOLDetailProps) {
                       <TableHead>SKU</TableHead>
                       <TableHead>PO</TableHead>
                       <TableHead className="text-right">Qty</TableHead>
-                      <TableHead className="text-right">
-                        Unit Price
-                      </TableHead>
-                      <TableHead className="text-right">Total</TableHead>
-                      <TableHead className="text-right">Weight</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -246,15 +241,6 @@ export function BOLDetail({ summary }: BOLDetailProps) {
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
                           {item.qty.toLocaleString()}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums text-muted-foreground">
-                          {formatCurrency(item.unit_price_usd)}
-                        </TableCell>
-                        <TableCell className="text-right font-medium tabular-nums text-foreground">
-                          {formatCurrency(item.amount_usd)}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums text-muted-foreground">
-                          {item.gw_kg.toLocaleString()} lbs
                         </TableCell>
                       </TableRow>
                     ))}
