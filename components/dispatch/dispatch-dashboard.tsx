@@ -20,7 +20,11 @@ interface DispatchDashboardProps {
 const DISPATCH_DATE_FIELDS: DateFilterField[] = [
   { key: "atd", label: "ATD" },
   { key: "ata", label: "ATA" },
+  { key: "lfd", label: "LFD" },
+  { key: "planned_pickup_date", label: "Planned Date" },
 ]
+
+type DispatchDateKey = "atd" | "ata" | "lfd" | "planned_pickup_date"
 
 export function DispatchDashboard({ initialData }: DispatchDashboardProps) {
   const [search, setSearch] = useState("")
@@ -48,7 +52,7 @@ export function DispatchDashboard({ initialData }: DispatchDashboardProps) {
       if (statusFilter !== "all" && container.status !== statusFilter) {
         return false
       }
-      if (!matchesAllDateFilters(dateFilters, (key) => container[key as "atd" | "ata"])) {
+      if (!matchesAllDateFilters(dateFilters, (key) => container[key as DispatchDateKey])) {
         return false
       }
       if (search) {

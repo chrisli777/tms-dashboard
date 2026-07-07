@@ -211,46 +211,47 @@ export function etaCellState(t: Partial<ContainerTracking>): DateCellState {
 /* ── Split-column display helpers ──
  *
  * When ETD/ATD and ETA/ATA are shown as separate columns:
- *  - The ETD / ETA columns always show the vessel *original* planned date
- *    (plain, no tag).
- *  - The ATD / ATA columns show the actual departure/arrival (blue/green) once
- *    it exists; before that, a *revised* estimate lands here in red. This mirrors
- *    the rule "originals stay in ETD/ETA, revisions land in ATD/ATA first, then
- *    the actual replaces them".
+ *  - The ETD / ETA columns show the *current* estimate. If a revised date has
+ *    come in, that revised value is shown here (in red); otherwise the original
+ *    planned date is shown plain.
+ *  - The ATD / ATA columns only ever show the *actual* departure/arrival
+ *    (blue/green). They stay empty until an actual date is recorded.
  */
 
-/** ETD column: the original planned departure, shown plain. */
+/** ETD column: the current estimate — revised (red) if any, else original (plain). */
 export function etdPlannedCellState(t: Partial<ContainerTracking>): DateCellState {
-  return { value: t.etd_original ?? t.etd ?? null, isActual: false, color: "default" }
+  const etd = t.etd ?? t.etd_original ?? null
+  const original = t.etd_original ?? null
+  return {
+    value: etd,
+    isActual: false,
+    color: revisedTriggered(etd, original) ? "red" : "default",
+  }
 }
 
-/** ATD column: actual departure (blue) if present, else a revised ETD (red). */
+/** ATD column: actual departure (blue) if present, else empty. */
 export function atdCellState(t: Partial<ContainerTracking>): DateCellState {
   if (t.atd) {
     return { value: t.atd, isActual: true, color: "blue" }
   }
-  const etd = t.etd ?? null
-  const original = t.etd_original ?? null
-  if (revisedTriggered(etd, original)) {
-    return { value: etd, isActual: false, color: "red" }
-  }
   return { value: null, isActual: false, color: "default" }
 }
 
-/** ETA column: the original planned arrival, shown plain. */
+/** ETA column: the current estimate — revised (red) if any, else original (plain). */
 export function etaPlannedCellState(t: Partial<ContainerTracking>): DateCellState {
-  return { value: t.eta_original ?? t.eta ?? null, isActual: false, color: "default" }
+  const eta = t.eta ?? t.eta_original ?? null
+  const original = t.eta_original ?? null
+  return {
+    value: eta,
+    isActual: false,
+    color: revisedTriggered(eta, original) ? "red" : "default",
+  }
 }
 
-/** ATA column: actual arrival (green) if present, else a revised ETA (red). */
+/** ATA column: actual arrival (green) if present, else empty. */
 export function ataCellState(t: Partial<ContainerTracking>): DateCellState {
   if (t.ata) {
     return { value: t.ata, isActual: true, color: "green" }
-  }
-  const eta = t.eta ?? null
-  const original = t.eta_original ?? null
-  if (revisedTriggered(eta, original)) {
-    return { value: eta, isActual: false, color: "red" }
   }
   return { value: null, isActual: false, color: "default" }
 }

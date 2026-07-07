@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { effectiveStatus } from "@/lib/status"
 
 /* ── Types ── */
@@ -23,6 +24,10 @@ export interface DispatchContainer {
   ata: string | null
   /** Manual post-arrival dispatch stage (null = defaults to Arrived). */
   dispatch_status: string | null
+  /** Last Free Day — manually editable in the Dispatcher. */
+  lfd: string | null
+  /** Planned pickup date — manually editable in the Dispatcher. */
+  planned_pickup_date: string | null
   totalQty: number
   totalWeight: number
   totalAmount: number
@@ -90,6 +95,10 @@ function groupRowsToContainers(rows: ViewRow[]): DispatchContainer[] {
         eta_original: r.eta_original ?? null,
         ata: r.ata ?? null,
         dispatch_status: r.dispatch_status ?? null,
+        // Filled in by a secondary query against shipment_containers below,
+        // since order_management_view does not expose these columns.
+        lfd: null,
+        planned_pickup_date: null,
         totalQty: 0,
         totalWeight: 0,
         totalAmount: 0,
@@ -121,6 +130,52 @@ function groupRowsToContainers(rows: ViewRow[]): DispatchContainer[] {
 
 /* ── Server-side data fetching ── */
 
+/**
+ * The Dispatcher's manually-managed dates (LFD + planned pickup) live on
+ * shipment_containers, which order_management_view does not expose. The anon
+ * role can't read that base table, so we use the admin client here (same as the
+ * write path). Rows of the same container share these dates, so we take the
+ * first non-null value.
+ */
+async function mergeDispatchDates(containers: DispatchContainer[]): Promise<void> {
+  const numbers = containers.map((c) => c.container).filter(Boolean)
+  if (numbers.length === 0) return
+
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from("shipment_containers")
+    .select("container_number, lfd, planned_pickup_date")
+    .in("container_number", numbers)
+
+  if (error) {
+    console.error("Failed to fetch dispatch dates:", error)
+    return
+  }
+
+  const byContainer = new Map<string, { lfd: string | null; planned_pickup_date: string | null }>()
+  for (const row of (data ?? []) as {
+    container_number: string | null
+    lfd: string | null
+    planned_pickup_date: string | null
+  }[]) {
+    const key = row.container_number ?? ""
+    if (!key) continue
+    const existing = byContainer.get(key)
+    byContainer.set(key, {
+      lfd: existing?.lfd ?? row.lfd ?? null,
+      planned_pickup_date: existing?.planned_pickup_date ?? row.planned_pickup_date ?? null,
+    })
+  }
+
+  for (const c of containers) {
+    const dates = byContainer.get(c.container)
+    if (dates) {
+      c.lfd = dates.lfd
+      c.planned_pickup_date = dates.planned_pickup_date
+    }
+  }
+}
+
 export async function fetchAllContainers(): Promise<DispatchContainer[]> {
   const supabase = await createClient()
 
@@ -138,6 +193,7 @@ export async function fetchAllContainers(): Promise<DispatchContainer[]> {
   }
 
   const containers = groupRowsToContainers((data ?? []) as ViewRow[])
+  await mergeDispatchDates(containers)
   return containers.sort((a, b) => a.container.localeCompare(b.container))
 }
 
@@ -156,5 +212,6 @@ export async function fetchContainerById(
   }
 
   const containers = groupRowsToContainers(data as ViewRow[])
+  await mergeDispatchDates(containers)
   return containers[0] ?? null
 }

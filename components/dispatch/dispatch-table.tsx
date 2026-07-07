@@ -12,9 +12,10 @@ import {
 } from "@/components/ui/table"
 import { ChevronRight, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
 import { DispatchStatusSelect } from "./dispatch-status-select"
+import { DispatchDateCell } from "./dispatch-date-cell"
 import type { DispatchContainer } from "@/lib/dispatch-data"
 
-export type SortKey = "supplier" | "status" | "atd" | "ata"
+export type SortKey = "supplier" | "status" | "atd" | "ata" | "lfd" | "planned_pickup_date"
 export type SortDir = "asc" | "desc"
 
 interface DispatchTableProps {
@@ -86,13 +87,21 @@ export function DispatchTable({ data, sortKey, sortDir, onSort }: DispatchTableP
             <SortableHead label="STATUS" sortKey="status" activeKey={sortKey} dir={sortDir} onSort={onSort} />
             <SortableHead label="ATD" sortKey="atd" activeKey={sortKey} dir={sortDir} onSort={onSort} />
             <SortableHead label="ATA" sortKey="ata" activeKey={sortKey} dir={sortDir} onSort={onSort} />
+            <SortableHead label="LFD" sortKey="lfd" activeKey={sortKey} dir={sortDir} onSort={onSort} />
+            <SortableHead
+              label="PLANNED DATE"
+              sortKey="planned_pickup_date"
+              activeKey={sortKey}
+              dir={sortDir}
+              onSort={onSort}
+            />
             <TableHead className="text-right">QTY</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {data.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+              <TableCell colSpan={10} className="h-24 text-center text-muted-foreground">
                 No containers found
               </TableCell>
             </TableRow>
@@ -137,6 +146,24 @@ export function DispatchTable({ data, sortKey, sortDir, onSort }: DispatchTableP
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {formatDate(container.ata)}
+                </TableCell>
+                <TableCell>
+                  <DispatchDateCell
+                    container={container.container}
+                    bol={container.bol}
+                    field="lfd"
+                    value={container.lfd}
+                    label="LFD"
+                  />
+                </TableCell>
+                <TableCell>
+                  <DispatchDateCell
+                    container={container.container}
+                    bol={container.bol}
+                    field="planned_pickup_date"
+                    value={container.planned_pickup_date}
+                    label="Planned Date"
+                  />
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
                   {container.totalQty.toLocaleString()}

@@ -27,6 +27,10 @@ export function StatusBadge({ status }: { status: string }) {
       className: "border-blue-200 bg-blue-50 text-blue-700",
       dot: "bg-blue-500",
     },
+    Available: {
+      className: "border-cyan-200 bg-cyan-50 text-cyan-700",
+      dot: "bg-cyan-500",
+    },
     Scheduled: {
       className: "border-teal-200 bg-teal-50 text-teal-700",
       dot: "bg-teal-500",

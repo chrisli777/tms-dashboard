@@ -42,6 +42,7 @@ export const STATUS_LABELS: Record<string, string> = {
   ARRIVED: "Arrived",
   // Manual dispatch stages (post-arrival).
   CUSTOMS_CLEARED: "Cleared",
+  AVAILABLE: "Available",
   SCHEDULED: "Scheduled",
   CLOSED: "Closed",
 }
@@ -59,10 +60,12 @@ const STATUS_ORDER: Record<string, number> = {
   // Manual dispatch stages continue the progression after Arrived.
   CUSTOMS_CLEARED: 3,
   Cleared: 3,
-  SCHEDULED: 4,
-  Scheduled: 4,
-  CLOSED: 5,
-  Closed: 5,
+  AVAILABLE: 4,
+  Available: 4,
+  SCHEDULED: 5,
+  Scheduled: 5,
+  CLOSED: 6,
+  Closed: 6,
 }
 
 /**
@@ -70,12 +73,13 @@ const STATUS_ORDER: Record<string, number> = {
  * Arrived. "Arrived" is the implicit default (dispatch_status = null / no
  * override). The others map to the distinct tokens persisted in the DB.
  */
-export const DISPATCH_STATUS_OPTIONS = ["Arrived", "Cleared", "Scheduled", "Closed"] as const
+export const DISPATCH_STATUS_OPTIONS = ["Arrived", "Cleared", "Available", "Scheduled", "Closed"] as const
 export type DispatchStatusOption = (typeof DISPATCH_STATUS_OPTIONS)[number]
 
 const DISPATCH_LABEL_TO_TOKEN: Record<DispatchStatusOption, string | null> = {
   Arrived: null, // no override — falls back to the derived "Arrived"
   Cleared: "CUSTOMS_CLEARED",
+  Available: "AVAILABLE",
   Scheduled: "SCHEDULED",
   Closed: "CLOSED",
 }
@@ -143,6 +147,7 @@ export const STATUS_DISPLAY_VALUES = [
   "In Transit",
   "Arrived",
   "Cleared",
+  "Available",
   "Scheduled",
   "Closed",
 ] as const
@@ -153,8 +158,9 @@ export const STATUS_STEPS = [
   { label: "In Transit", step: 1 },
   { label: "Arrived", step: 2 },
   { label: "Cleared", step: 3 },
-  { label: "Scheduled", step: 4 },
-  { label: "Closed", step: 5 },
+  { label: "Available", step: 4 },
+  { label: "Scheduled", step: 5 },
+  { label: "Closed", step: 6 },
 ]
 
 /** Map a display label (or raw token) to its timeline step index. */
@@ -164,8 +170,9 @@ export function getStatusStep(status: string): number {
     "In Transit": 1,
     Arrived: 2,
     Cleared: 3,
-    Scheduled: 4,
-    Closed: 5,
+    Available: 4,
+    Scheduled: 5,
+    Closed: 6,
   }
   // Accept both display labels and raw tokens.
   return stepByLabel[status] ?? stepByLabel[statusLabel(status)] ?? 0

@@ -25,6 +25,7 @@ const EDITABLE_STATUSES = new Set<string>(DISPATCH_STATUS_OPTIONS)
 const DOT_CLASS: Record<string, string> = {
   Arrived: "bg-emerald-500",
   Cleared: "bg-blue-500",
+  Available: "bg-cyan-500",
   Scheduled: "bg-teal-500",
   Closed: "bg-slate-500",
 }
