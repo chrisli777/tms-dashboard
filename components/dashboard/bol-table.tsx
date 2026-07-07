@@ -9,34 +9,60 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { ChevronRight } from "lucide-react"
+import { ChevronRight, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
+import { StatusBadge } from "@/components/ui/status-badge"
+import { TrackingDateCell } from "./tracking-date-cell"
+import {
+  etdPlannedCellState,
+  atdCellState,
+  etaPlannedCellState,
+  ataCellState,
+} from "@/lib/tracking-rules"
 import type { BOLSummary } from "@/lib/bol-data"
+
+export type SortKey = "supplier" | "status" | "etd" | "atd" | "eta" | "ata"
+export type SortDir = "asc" | "desc"
 
 interface BOLTableProps {
   data: BOLSummary[]
+  sortKey: SortKey | null
+  sortDir: SortDir
+  onSort: (key: SortKey) => void
 }
 
-function formatDate(dateStr: string) {
-  const date = new Date(dateStr + "T00:00:00")
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  })
+/** A clickable header that toggles one-click sorting on its column. */
+function SortableHead({
+  label,
+  sortKey,
+  activeKey,
+  dir,
+  onSort,
+}: {
+  label: string
+  sortKey: SortKey
+  activeKey: SortKey | null
+  dir: SortDir
+  onSort: (key: SortKey) => void
+}) {
+  const active = activeKey === sortKey
+  const Icon = !active ? ChevronsUpDown : dir === "asc" ? ArrowUp : ArrowDown
+  return (
+    <TableHead>
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className={`inline-flex items-center gap-1 font-medium transition-colors hover:text-foreground ${
+          active ? "text-foreground" : ""
+        }`}
+      >
+        {label}
+        <Icon className={`h-3.5 w-3.5 ${active ? "text-foreground" : "text-muted-foreground/60"}`} />
+      </button>
+    </TableHead>
+  )
 }
 
-function formatCurrency(value: number) {
-  return `$${value.toLocaleString("en-US", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  })}`
-}
-
-function formatWeight(value: number) {
-  return `${value.toLocaleString()} lbs`
-}
-
-export function BOLTable({ data }: BOLTableProps) {
+export function BOLTable({ data, sortKey, sortDir, onSort }: BOLTableProps) {
   return (
     <div className="rounded-lg border bg-card">
       <Table>
@@ -44,13 +70,13 @@ export function BOLTable({ data }: BOLTableProps) {
           <TableRow className="hover:bg-transparent">
             <TableHead className="w-10" />
             <TableHead className="min-w-[280px]">BOL / INVOICE</TableHead>
-            <TableHead>SUPPLIER</TableHead>
+            <SortableHead label="SUPPLIER" sortKey="supplier" activeKey={sortKey} dir={sortDir} onSort={onSort} />
             <TableHead className="text-center">CONTAINERS</TableHead>
-            <TableHead>STATUS</TableHead>
-            <TableHead>ETD</TableHead>
-            <TableHead>ETA</TableHead>
-            <TableHead className="text-right">VALUE</TableHead>
-            <TableHead className="text-right">WEIGHT</TableHead>
+            <SortableHead label="STATUS" sortKey="status" activeKey={sortKey} dir={sortDir} onSort={onSort} />
+            <SortableHead label="ETD" sortKey="etd" activeKey={sortKey} dir={sortDir} onSort={onSort} />
+            <SortableHead label="ATD" sortKey="atd" activeKey={sortKey} dir={sortDir} onSort={onSort} />
+            <SortableHead label="ETA" sortKey="eta" activeKey={sortKey} dir={sortDir} onSort={onSort} />
+            <SortableHead label="ATA" sortKey="ata" activeKey={sortKey} dir={sortDir} onSort={onSort} />
             <TableHead className="text-right">POS</TableHead>
           </TableRow>
         </TableHeader>
@@ -100,17 +126,17 @@ export function BOLTable({ data }: BOLTableProps) {
                 <TableCell>
                   <StatusBadge status={row.status} />
                 </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  {formatDate(row.etd)}
+                <TableCell>
+                  <TrackingDateCell state={etdPlannedCellState(row)} kind="etd" />
                 </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  {formatDate(row.eta)}
+                <TableCell>
+                  <TrackingDateCell state={atdCellState(row)} kind="etd" />
                 </TableCell>
-                <TableCell className="text-right font-semibold tabular-nums text-foreground">
-                  {formatCurrency(row.totalAmount)}
+                <TableCell>
+                  <TrackingDateCell state={etaPlannedCellState(row)} kind="eta" />
                 </TableCell>
-                <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
-                  {formatWeight(row.totalWeight)}
+                <TableCell>
+                  <TrackingDateCell state={ataCellState(row)} kind="eta" />
                 </TableCell>
                 <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
                   {row.poCount} {row.poCount === 1 ? "PO" : "POs"}
@@ -124,40 +150,3 @@ export function BOLTable({ data }: BOLTableProps) {
   )
 }
 
-function StatusBadge({ status }: { status: string }) {
-  if (status === "Customs Cleared" || status === "Cleared" || status === "Delivered" || status === "Closed") {
-    return (
-      <span className="inline-flex items-center gap-1.5 rounded-md bg-success/10 px-2.5 py-1 text-xs font-medium text-success">
-        <svg
-          className="size-3.5"
-          viewBox="0 0 16 16"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <rect width="16" height="16" rx="3" fill="currentColor" fillOpacity="0.15" />
-          <path
-            d="M11.5 5.5L7 10.5L4.5 8"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-        {status === "Cleared" ? "Customs Cleared" : status}
-      </span>
-    )
-  }
-  if (status === "Booked") {
-    return (
-      <span className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
-        Booked
-      </span>
-    )
-  }
-  return (
-    <span className="inline-flex items-center gap-1.5 rounded-md bg-chart-3/10 px-2.5 py-1 text-xs font-medium text-chart-3">
-      <span className="size-2 animate-pulse rounded-full bg-chart-3" />
-      {status === "In Transit" ? "In Transit" : status}
-    </span>
-  )
-}

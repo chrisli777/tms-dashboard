@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation"
 import { Package } from "lucide-react"
-import { createClient } from "@/lib/supabase/server"
+import { fetchContainerById } from "@/lib/dispatch-data"
 import { ContainerDetail } from "@/components/dashboard/container-detail"
 import { SidebarLayout } from "@/components/sidebar-layout"
 
@@ -9,76 +9,31 @@ export const dynamic = "force-dynamic"
 
 interface ContainerPageProps {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ from?: string }>
 }
 
-async function fetchContainerById(id: string) {
-  const supabase = await createClient()
-
-  const { data: container, error } = await supabase
-    .from("containers")
-    .select(`
-      id,
-      container,
-      type,
-      status,
-      shipment_id,
-      shipments (
-        id,
-        invoice,
-        bol,
-        supplier,
-        customer,
-        etd,
-        eta,
-        status
-      ),
-      container_items (
-        id,
-        sku,
-        qty,
-        gw_kg,
-        unit_price_usd,
-        amount_usd,
-        whi_po
-      )
-    `)
-    .eq("id", id)
-    .single()
-
-  if (error || !container) {
-    return null
-  }
-
-  return container
-}
-
-export default async function ContainerPage({ params }: ContainerPageProps) {
+export default async function ContainerPage({ params, searchParams }: ContainerPageProps) {
   const { id } = await params
-  const container = await fetchContainerById(id)
+  const { from } = await searchParams
+  const container = await fetchContainerById(decodeURIComponent(id))
 
   if (!container) {
     notFound()
   }
 
-  const shipment = container.shipments as {
-    id: string
-    invoice: string
-    bol: string
-    supplier: string
-    customer: string
-    etd: string
-    eta: string
-    status: string
-  }
+  // The back arrow returns to wherever the user came from (Dispatcher, BOL, …).
+  // We only accept in-app absolute paths and fall back to the container's BOL.
+  const backHref =
+    from && from.startsWith("/") ? from : `/bol/${encodeURIComponent(container.bol)}`
 
   return (
     <SidebarLayout
       title={container.container}
-      description={`${container.type} Container`}
+      description="Container"
       icon={<Package className="h-8 w-8" />}
-      backHref={`/bol/${encodeURIComponent(shipment.bol)}`}
+      backHref={backHref}
     >
-      <ContainerDetail container={container} shipment={shipment} />
+      <ContainerDetail container={container} />
     </SidebarLayout>
   )
 }

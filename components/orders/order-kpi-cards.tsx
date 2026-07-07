@@ -12,11 +12,8 @@ export function OrderKPICards({ data }: OrderKPICardsProps) {
   const totalAmount = data.reduce((sum, o) => sum + o.totalAmount, 0)
   const totalBOLs = data.reduce((sum, o) => sum + o.bolCount, 0)
   const totalContainers = data.reduce((sum, o) => sum + o.containerCount, 0)
-  const completedCount = data.filter((o) => o.status === "Completed").length
-  const inProgressCount = data.filter((o) => o.status === "In Progress").length
-  const inProgressValue = data
-    .filter((o) => o.status === "In Progress")
-    .reduce((sum, o) => sum + o.totalAmount, 0)
+  const clearedCount = data.filter((o) => o.status === "Arrived").length
+  const inTransitCount = data.filter((o) => o.status === "On Water" || o.status === "In Transit").length
 
   const cards = [
     {
@@ -29,8 +26,8 @@ export function OrderKPICards({ data }: OrderKPICardsProps) {
       ),
     },
     {
-      label: "IN PROGRESS",
-      value: inProgressCount.toString(),
+      label: "IN TRANSIT",
+      value: inTransitCount.toString(),
       iconClass: "text-amber-600",
       cardClass: "border-amber-500/20 bg-amber-500/5",
       icon: (
@@ -38,8 +35,8 @@ export function OrderKPICards({ data }: OrderKPICardsProps) {
       ),
     },
     {
-      label: "COMPLETED",
-      value: completedCount.toString(),
+      label: "ARRIVED",
+      value: clearedCount.toString(),
       iconClass: "text-success",
       cardClass: "border-success/20 bg-success/5",
       icon: (

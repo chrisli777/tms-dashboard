@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/table"
 import { Progress } from "@/components/ui/progress"
 import { ChevronRight, AlertTriangle, Check } from "lucide-react"
+import { StatusBadge } from "@/components/ui/status-badge"
 import type { OrderSummary } from "@/lib/order-data"
 
 interface OrderTableProps {
@@ -104,7 +105,7 @@ export function OrderTable({ data }: OrderTableProps) {
                   <span className="font-medium text-primary">{order.supplier}</span>
                 </TableCell>
                 <TableCell>
-                  <OrderStatusBadge status={order.status} />
+                  <StatusBadge status={order.status} />
                 </TableCell>
                 <TableCell>
                   <ProgressCell order={order} />
@@ -133,59 +134,13 @@ export function OrderTable({ data }: OrderTableProps) {
   )
 }
 
-function OrderStatusBadge({ status }: { status: string }) {
-  if (status === "Completed") {
-    return (
-      <span className="inline-flex items-center gap-1.5 rounded-md bg-success/10 px-2.5 py-1 text-xs font-medium text-success">
-        <svg
-          className="size-3.5"
-          viewBox="0 0 16 16"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <rect width="16" height="16" rx="3" fill="currentColor" fillOpacity="0.15" />
-          <path
-            d="M11.5 5.5L7 10.5L4.5 8"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-        Completed
-      </span>
-    )
-  }
-  if (status === "In Progress") {
-    return (
-      <span className="inline-flex items-center gap-1.5 rounded-md bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-600">
-        <span className="size-2 animate-pulse rounded-full bg-amber-500" />
-        In Progress
-      </span>
-    )
-  }
-  if (status === "Pending") {
-    return (
-      <span className="inline-flex items-center gap-1.5 rounded-md bg-blue-500/10 px-2.5 py-1 text-xs font-medium text-blue-600">
-        <span className="size-2 rounded-full bg-blue-500" />
-        Pending
-      </span>
-    )
-  }
-  return (
-    <span className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
-      {status}
-    </span>
-  )
-}
-
 function ProgressCell({ order }: { order: OrderSummary }) {
   // All orders show unit-based progress
   const totalOrdered = order.totalQtyOrdered ?? 0
   const totalReceived = order.totalQtyReceived ?? 0
   const percent = order.progressPercent ?? 100
 
-  if (totalOrdered === 0 && order.status !== "Pending") {
+  if (totalOrdered === 0) {
     // Fallback for orders without qty data - show as complete
     return (
       <div className="flex flex-col gap-1">
@@ -222,7 +177,7 @@ function DueDateCell({ order }: { order: OrderSummary }) {
     return <span className="text-xs text-muted-foreground">-</span>
   }
 
-  const isComplete = order.status === "Completed" || order.progressPercent === 100
+  const isComplete = order.status === "Arrived" || order.progressPercent === 100
 
   if (isComplete) {
     return (

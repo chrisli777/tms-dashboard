@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutGrid, Ship, Truck, FileSpreadsheet, ChevronLeft, ChevronRight } from "lucide-react"
+import { LayoutGrid, Ship, Truck, FileSpreadsheet, ChevronLeft, ChevronRight, Warehouse } from "lucide-react"
 import { useSidebar } from "@/components/ui/sidebar"
 import {
   Sidebar,
@@ -28,6 +28,11 @@ const navItems = [
     title: "Dispatcher",
     href: "/dispatch",
     icon: Truck,
+  },
+  {
+    title: "Warehouse Receiving",
+    href: "/warehouse-receiving",
+    icon: Warehouse,
   },
   {
     title: "Master Table",

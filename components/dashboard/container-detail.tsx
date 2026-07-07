@@ -1,9 +1,6 @@
 "use client"
 
 import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { useSWRConfig } from "swr"
-import { useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import {
   Table,
@@ -13,226 +10,142 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Check, Truck, Loader2 } from "lucide-react"
-
-interface ContainerItem {
-  id: string
-  sku: string
-  qty: number
-  gw_kg: number
-  unit_price_usd: number
-  amount_usd: number
-  whi_po: string
-}
-
-interface Shipment {
-  id: string
-  invoice: string
-  bol: string
-  supplier: string
-  customer: string
-  etd: string
-  eta: string
-  status: string
-}
-
-interface Container {
-  id: string
-  container: string
-  type: string
-  status: string
-  shipment_id: string
-  container_items: ContainerItem[]
-}
+import { TrackingDateCell } from "./tracking-date-cell"
+import { ManualTrackingEditor } from "./manual-tracking-editor"
+import { DispatchStatusSelect } from "@/components/dispatch/dispatch-status-select"
+import { DispatchDateCell } from "@/components/dispatch/dispatch-date-cell"
+import { DispatchAssignmentCell } from "@/components/dispatch/dispatch-assignment-cell"
+import { WAREHOUSE_OPTIONS, VENDOR_OPTIONS } from "@/lib/dispatch-options"
+import { etdCellState, etaCellState } from "@/lib/tracking-rules"
+import type { DispatchContainer } from "@/lib/dispatch-data"
 
 interface ContainerDetailProps {
-  container: Container
-  shipment: Shipment
+  container: DispatchContainer
 }
 
-function formatDate(dateStr: string) {
-  const date = new Date(dateStr + "T00:00:00")
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  })
-}
-
-function formatCurrency(value: number) {
-  return `$${value.toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`
-}
-
-// Container statuses - same as BOL but uses "Scheduled" instead of "Delivering"
-const CONTAINER_STATUSES = [
-  { value: "Booked", label: "Booked" },
-  { value: "On Water", label: "On Water" },
-  { value: "Customs Cleared", label: "Customs Cleared" },
-  { value: "Scheduled", label: "Scheduled" },
-  { value: "Delivered", label: "Delivered" },
-] as const
-
-export function ContainerDetail({ container, shipment }: ContainerDetailProps) {
-  const router = useRouter()
-  const { mutate } = useSWRConfig()
-  const [isUpdating, setIsUpdating] = useState(false)
-  // Initialize with actual container status from DB
-  const [currentStatus, setCurrentStatus] = useState(container.status)
-
-  const totalAmount = container.container_items.reduce(
-    (sum, i) => sum + i.amount_usd,
-    0
-  )
-  const totalWeight = container.container_items.reduce(
-    (sum, i) => sum + i.gw_kg,
-    0
-  )
-  const totalQty = container.container_items.reduce((sum, i) => sum + i.qty, 0)
-
-  const handleStatusChange = async (newStatus: string) => {
-    if (newStatus === currentStatus) return
-    setIsUpdating(true)
-    try {
-      const response = await fetch(`/api/containers/${container.id}/status`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
-      })
-
-      if (!response.ok) {
-        throw new Error("Failed to update status")
-      }
-
-      setCurrentStatus(newStatus)
-      mutate(() => true, undefined, { revalidate: true })
-      router.refresh()
-    } catch (error) {
-      console.error("Error updating status:", error)
-      alert("Failed to update status. Please try again.")
-    } finally {
-      setIsUpdating(false)
-    }
-  }
-
+export function ContainerDetail({ container }: ContainerDetailProps) {
   return (
     <div className="flex flex-1 flex-col gap-6 p-6">
       {/* Info bar */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex flex-wrap items-center gap-4 text-sm">
-          <Badge variant="outline" className="text-sm font-normal">
-            {container.type}
-          </Badge>
-          <Link
-            href={`/bol/${encodeURIComponent(shipment.bol)}`}
-            className="font-medium text-primary hover:underline"
-          >
-            BOL: {shipment.bol}
-          </Link>
-          <span className="text-muted-foreground">
-            {shipment.supplier}
-          </span>
-          <span className="text-muted-foreground">
-            ETA: {formatDate(shipment.eta)}
-          </span>
-        </div>
+      <div className="flex flex-wrap items-center gap-4 text-base">
+        <Link
+          href={`/bol/${encodeURIComponent(container.bol)}`}
+          className="font-medium text-primary hover:underline"
+        >
+          BOL: {container.bol}
+        </Link>
+        <span className="text-muted-foreground">{container.supplier}</span>
+        <span className="flex items-center gap-1.5 text-muted-foreground">
+          <span className="font-semibold">ETD/ATD:</span>
+          <TrackingDateCell state={etdCellState(container)} kind="etd" inline />
+        </span>
+        <span className="flex items-center gap-1.5 text-muted-foreground">
+          <span className="font-semibold">ETA/ATA:</span>
+          <TrackingDateCell state={etaCellState(container)} kind="eta" inline />
+        </span>
       </div>
 
-      {/* Status Card */}
+      {/* Dispatch details */}
       <Card>
         <CardContent className="px-6 py-5">
-          <h2 className="mb-4 text-xs font-semibold tracking-wider text-muted-foreground">
-            CONTAINER DELIVERY STATUS
+          <h2 className="mb-4 text-sm font-semibold tracking-wider text-muted-foreground">
+            DISPATCH
           </h2>
-          <div className="flex flex-wrap items-center gap-3">
-            {CONTAINER_STATUSES.map((status) => {
-              const isActive = currentStatus === status.value
-              let bgClass = ""
-              if (isActive) {
-                if (status.value === "Delivered") bgClass = "bg-success hover:bg-success/90"
-                else if (status.value === "Scheduled") bgClass = "bg-amber-500 hover:bg-amber-600"
-                else if (status.value === "Customs Cleared") bgClass = "bg-blue-500 hover:bg-blue-600"
-                else if (status.value === "On Water") bgClass = "bg-cyan-500 hover:bg-cyan-600"
-                else bgClass = "bg-slate-500 hover:bg-slate-600"
-              }
-              return (
-                <Button
-                  key={status.value}
-                  variant={isActive ? "default" : "outline"}
-                  size="sm"
-                  className={`gap-2 ${bgClass}`}
-                  onClick={() => handleStatusChange(status.value)}
-                  disabled={isUpdating}
-                >
-                  {isUpdating && currentStatus === status.value ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : status.value === "Delivered" ? (
-                    <Check className="size-4" />
-                  ) : (
-                    <Truck className="size-4" />
-                  )}
-                  {status.label}
-                </Button>
-              )
-            })}
+          <div className="grid grid-cols-2 gap-x-6 gap-y-4 md:grid-cols-3 lg:grid-cols-5">
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs font-semibold tracking-wider text-muted-foreground">
+                STATUS
+              </span>
+              <DispatchStatusSelect
+                container={container.container}
+                bol={container.bol}
+                status={container.status}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs font-semibold tracking-wider text-muted-foreground">
+                WAREHOUSE
+              </span>
+              <DispatchAssignmentCell
+                container={container.container}
+                bol={container.bol}
+                field="warehouse"
+                value={container.warehouse}
+                options={WAREHOUSE_OPTIONS}
+                placeholder="Warehouse"
+                label="Warehouse"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs font-semibold tracking-wider text-muted-foreground">
+                VENDOR
+              </span>
+              <DispatchAssignmentCell
+                container={container.container}
+                bol={container.bol}
+                field="vendor"
+                value={container.vendor}
+                options={VENDOR_OPTIONS}
+                placeholder="Assign"
+                label="Vendor"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs font-semibold tracking-wider text-muted-foreground">
+                LFD
+              </span>
+              <DispatchDateCell
+                container={container.container}
+                bol={container.bol}
+                field="lfd"
+                value={container.lfd}
+                label="LFD"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs font-semibold tracking-wider text-muted-foreground">
+                PLANNED DATE
+              </span>
+              <DispatchDateCell
+                container={container.container}
+                bol={container.bol}
+                field="planned_pickup_date"
+                value={container.planned_pickup_date}
+                label="Planned Date"
+              />
+            </div>
           </div>
-          <p className="mt-3 text-sm text-muted-foreground">
-            {currentStatus === "Delivered"
-              ? "This container has been delivered to the warehouse."
-              : currentStatus === "Scheduled"
-                ? "This container is scheduled for delivery."
-                : currentStatus === "Customs Cleared"
-                  ? "This container has cleared customs and is ready for scheduling."
-                  : currentStatus === "On Water"
-                    ? "This container is in transit on the water."
-                    : "This container is booked and awaiting shipment."}
-          </p>
+          <div className="mt-4 border-t pt-4">
+            <ManualTrackingEditor
+              container={container.container}
+              bol={container.bol}
+              atd={container.atd}
+              ata={container.ata}
+              label="Edit dates"
+            />
+          </div>
         </CardContent>
       </Card>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2">
         <Card className="border-primary/20 bg-primary/5 py-4">
           <CardContent className="px-4">
-            <div className="text-2xl font-bold tabular-nums text-primary">
-              {container.container_items.length}
+            <div className="text-3xl font-bold tabular-nums text-primary">
+              {container.skuCount}
             </div>
-            <p className="text-xs font-semibold tracking-wider text-muted-foreground">
+            <p className="text-sm font-semibold tracking-wider text-muted-foreground">
               SKUs
             </p>
           </CardContent>
         </Card>
         <Card className="border-primary/20 bg-primary/5 py-4">
           <CardContent className="px-4">
-            <div className="text-2xl font-bold tabular-nums text-primary">
-              {totalQty.toLocaleString()}
+            <div className="text-3xl font-bold tabular-nums text-primary">
+              {container.totalQty.toLocaleString()}
             </div>
-            <p className="text-xs font-semibold tracking-wider text-muted-foreground">
+            <p className="text-sm font-semibold tracking-wider text-muted-foreground">
               TOTAL QTY
-            </p>
-          </CardContent>
-        </Card>
-        <Card className="border-primary/20 bg-primary/5 py-4">
-          <CardContent className="px-4">
-            <div className="text-2xl font-bold tabular-nums text-primary">
-              {formatCurrency(totalAmount)}
-            </div>
-            <p className="text-xs font-semibold tracking-wider text-muted-foreground">
-              TOTAL VALUE
-            </p>
-          </CardContent>
-        </Card>
-        <Card className="border-primary/20 bg-primary/5 py-4">
-          <CardContent className="px-4">
-            <div className="text-2xl font-bold tabular-nums text-primary">
-              {totalWeight.toLocaleString()} lbs
-            </div>
-            <p className="text-xs font-semibold tracking-wider text-muted-foreground">
-              TOTAL WEIGHT
             </p>
           </CardContent>
         </Card>
@@ -242,23 +155,20 @@ export function ContainerDetail({ container, shipment }: ContainerDetailProps) {
       <Card>
         <CardContent className="p-0">
           <div className="border-b px-5 py-3.5">
-            <h2 className="text-sm font-semibold text-foreground">
-              Container Items ({container.container_items.length} SKUs)
+            <h2 className="text-base font-semibold text-foreground">
+              Container Items ({container.skuCount} SKUs)
             </h2>
           </div>
-          <Table>
+          <Table className="text-base">
             <TableHeader>
               <TableRow className="hover:bg-transparent">
                 <TableHead>SKU</TableHead>
                 <TableHead>PO</TableHead>
                 <TableHead className="text-right">Qty</TableHead>
-                <TableHead className="text-right">Unit Price</TableHead>
-                <TableHead className="text-right">Total</TableHead>
-                <TableHead className="text-right">Weight</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {container.container_items.map((item, idx) => (
+              {container.items.map((item, idx) => (
                 <TableRow key={`${item.sku}-${item.whi_po}-${idx}`}>
                   <TableCell className="font-medium text-foreground">
                     {item.sku}
@@ -273,15 +183,6 @@ export function ContainerDetail({ container, shipment }: ContainerDetailProps) {
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {item.qty.toLocaleString()}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums text-muted-foreground">
-                    {formatCurrency(item.unit_price_usd)}
-                  </TableCell>
-                  <TableCell className="text-right font-medium tabular-nums text-foreground">
-                    {formatCurrency(item.amount_usd)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums text-muted-foreground">
-                    {item.gw_kg.toLocaleString()} lbs
                   </TableCell>
                 </TableRow>
               ))}

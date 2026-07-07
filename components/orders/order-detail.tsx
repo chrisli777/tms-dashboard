@@ -2,21 +2,11 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { useSWRConfig } from "swr"
-import { ChevronRight, Check, Ship, AlertTriangle, Package, Calendar, TrendingUp } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { ChevronRight, Check, AlertTriangle, Calendar, TrendingUp } from "lucide-react"
+import { Card, CardContent } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { StatusSelector, ORDER_STATUSES } from "@/components/ui/status-selector"
+import { StatusBadge } from "@/components/ui/status-badge"
+import { STATUS_STEPS, getStatusStep } from "@/lib/status"
 import type { OrderSummary } from "@/lib/order-data"
 
 interface OrderDetailProps {
@@ -53,67 +43,11 @@ function getDaysRemaining(dueDate: string | null): { days: number; isUrgent: boo
   return { days, isUrgent: days <= 15 }
 }
 
-const TIMELINE_STEPS = [
-  { label: "Booked", step: 0 },
-  { label: "On Water", step: 1 },
-  { label: "Customs Cleared", step: 2 },
-  { label: "Delivering", step: 3 },
-  { label: "Delivered", step: 4 },
-]
-
-function getCurrentStep(status: string) {
-  const stepMap: Record<string, number> = {
-    "Booked": 0,
-    "On Water": 1,
-    "Customs Cleared": 2,
-    "Delivering": 3,
-    "Delivered": 4,
-    "Closed": 5,
-  }
-  return stepMap[status] ?? 1
-}
-
 export function OrderDetail({ order }: OrderDetailProps) {
-  const router = useRouter()
-  const { mutate } = useSWRConfig()
-  const [currentStatus, setCurrentStatus] = useState(order.status)
-  
-  const clearedBOLs = order.bols.filter((b) => 
-    b.status === "Cleared" || b.status === "Customs Cleared"
-  ).length
-  const inTransitBOLs = order.bols.filter((b) => 
+  const clearedBOLs = order.bols.filter((b) => b.status === "Arrived").length
+  const inTransitBOLs = order.bols.filter((b) =>
     b.status === "In Transit" || b.status === "On Water"
   ).length
-  const deliveringBOLs = order.bols.filter((b) => 
-    b.status === "Delivering"
-  ).length
-  const deliveredBOLs = order.bols.filter((b) => 
-    b.status === "Delivered" || b.status === "Closed"
-  ).length
-
-  const handleStatusChange = async (newStatus: string) => {
-    const previousStatus = currentStatus
-    setCurrentStatus(newStatus)
-    
-    try {
-      const response = await fetch(`/api/orders/${order.id}/status`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
-      })
-
-      if (!response.ok) {
-        setCurrentStatus(previousStatus)
-        throw new Error("Failed to update status")
-      }
-
-      mutate(() => true, undefined, { revalidate: true })
-      router.refresh()
-    } catch (error) {
-      console.error("Error updating status:", error)
-      alert("Failed to update status. Please try again.")
-    }
-  }
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-6">
@@ -122,11 +56,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
         <p className="text-sm text-muted-foreground">
           <span className="font-medium text-foreground">Supplier:</span> {order.supplier} • <span className="font-medium text-foreground">Customer:</span> {order.customer} • Order Date: {formatDate(order.orderDate)}
         </p>
-        <StatusSelector
-          currentStatus={currentStatus}
-          statuses={ORDER_STATUSES}
-          onStatusChange={handleStatusChange}
-        />
+        <StatusBadge status={order.status} />
       </div>
 
       {/* Progress and Due Date Cards - Side by Side */}
@@ -152,7 +82,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
 
         {/* Due Date Card */}
         <Card className={`${
-          order.status === "Completed" || (order.progressPercent ?? 100) === 100
+          order.status === "Arrived" || (order.progressPercent ?? 100) === 100
             ? "border-success/20"
             : order.dueDate && getDaysRemaining(order.dueDate)?.isUrgent
               ? "border-destructive/20"
@@ -161,14 +91,14 @@ export function OrderDetail({ order }: OrderDetailProps) {
           <CardContent className="p-5">
             <div className="mb-3 flex items-center gap-2">
               <div className={`flex size-8 items-center justify-center rounded-full ${
-                order.status === "Completed" || (order.progressPercent ?? 100) === 100
+                order.status === "Arrived" || (order.progressPercent ?? 100) === 100
                   ? "bg-success/10"
                   : order.dueDate && getDaysRemaining(order.dueDate)?.isUrgent
                     ? "bg-destructive/10"
                     : "bg-muted"
               }`}>
                 <Calendar className={`size-4 ${
-                  order.status === "Completed" || (order.progressPercent ?? 100) === 100
+                  order.status === "Arrived" || (order.progressPercent ?? 100) === 100
                     ? "text-success"
                     : order.dueDate && getDaysRemaining(order.dueDate)?.isUrgent
                       ? "text-destructive"
@@ -177,7 +107,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
               </div>
               <h3 className="font-semibold text-foreground">Due Date</h3>
             </div>
-            <DueDateCardContent dueDate={order.dueDate} isComplete={order.status === "Completed" || (order.progressPercent ?? 100) === 100} />
+            <DueDateCardContent dueDate={order.dueDate} isComplete={order.status === "Arrived" || (order.progressPercent ?? 100) === 100} />
           </CardContent>
         </Card>
       </div>
@@ -210,7 +140,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
               {clearedBOLs}
             </div>
             <p className="text-xs font-semibold tracking-wider text-muted-foreground">
-              CLEARED
+              ARRIVED
             </p>
           </CardContent>
         </Card>
@@ -236,57 +166,6 @@ export function OrderDetail({ order }: OrderDetailProps) {
         </Card>
       </div>
 
-      {/* Pending Items Section (for Pending orders) */}
-      {order.status === "Pending" && order.pendingItems && order.pendingItems.length > 0 && (
-        <div>
-          <h2 className="mb-4 text-xs font-semibold tracking-wider text-muted-foreground">
-            PENDING ITEMS ({order.pendingItems.length} SKUs)
-          </h2>
-          
-          {/* Pending Items Table */}
-          <Card>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead>SKU</TableHead>
-                    <TableHead>DESCRIPTION</TableHead>
-                    <TableHead className="text-right">QTY ORDERED</TableHead>
-                    <TableHead className="text-right">QTY RECEIVED</TableHead>
-                    <TableHead className="text-right">UNIT COST</TableHead>
-                    <TableHead className="text-right">AMOUNT</TableHead>
-                    <TableHead className="text-center">PROGRESS</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {order.pendingItems.map((item) => {
-                    const itemProgress = item.qtyOrdered > 0 
-                      ? Math.round((item.qtyReceived / item.qtyOrdered) * 100) 
-                      : 0
-                    return (
-                      <TableRow key={item.id}>
-                        <TableCell className="font-mono font-medium">{item.sku}</TableCell>
-                        <TableCell className="text-muted-foreground">{item.description || "-"}</TableCell>
-                        <TableCell className="text-right tabular-nums">{item.qtyOrdered.toLocaleString()}</TableCell>
-                        <TableCell className="text-right tabular-nums">{item.qtyReceived.toLocaleString()}</TableCell>
-                        <TableCell className="text-right tabular-nums">{formatCurrency(item.unitCost)}</TableCell>
-                        <TableCell className="text-right font-semibold tabular-nums">{formatCurrency(item.amount)}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center justify-center gap-2">
-                            <Progress value={itemProgress} className="h-2 w-16" />
-                            <span className="text-xs text-muted-foreground">{itemProgress}%</span>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
       {/* BOLs List */}
       <div>
         <h2 className="mb-4 text-xs font-semibold tracking-wider text-muted-foreground">
@@ -301,7 +180,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
             </Card>
           ) : (
             order.bols.map((bol) => {
-              const currentStep = getCurrentStep(bol.status)
+              const currentStep = getStatusStep(bol.status)
               return (
                 <Card key={bol.id}>
                   <CardContent className="p-0">
@@ -319,7 +198,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
                             Invoice: {bol.invoice}
                           </span>
                         </div>
-                        <BOLStatusBadge status={bol.status} />
+                        <StatusBadge status={bol.status} />
                       </div>
                       <div className="flex items-center gap-4 text-sm">
                         <span className="text-muted-foreground">
@@ -371,10 +250,10 @@ export function OrderDetail({ order }: OrderDetailProps) {
 
                       {/* Mini Status Timeline */}
                       <div className="flex items-center">
-                        {TIMELINE_STEPS.map((step, idx) => {
+                        {STATUS_STEPS.map((step, idx) => {
                           const isCompleted = step.step <= currentStep
                           const isActive = step.step === currentStep
-                          const isLast = idx === TIMELINE_STEPS.length - 1
+                          const isLast = idx === STATUS_STEPS.length - 1
 
                           return (
                             <div
@@ -495,94 +374,4 @@ function DueDateCardContent({ dueDate, isComplete }: { dueDate: string | null; i
   )
 }
 
-function DueDateDisplay({ dueDate, isComplete }: { dueDate: string; isComplete: boolean }) {
-  const [mounted, setMounted] = useState(false)
-  
-  useEffect(() => {
-    setMounted(true)
-  }, [])
 
-  if (isComplete) {
-    return (
-      <p className="flex items-center gap-2 text-sm">
-        <span className="text-muted-foreground">Due: {formatDate(dueDate)}</span>
-        <span className="inline-flex items-center gap-1 rounded bg-success/10 px-2 py-0.5 text-xs font-medium text-success">
-          <Check className="size-3" />
-          Done
-        </span>
-      </p>
-    )
-  }
-
-  // Only calculate days remaining on client to avoid hydration mismatch
-  if (!mounted) {
-    return <p className="text-sm text-muted-foreground">Due: {formatDate(dueDate)}</p>
-  }
-
-  const remaining = getDaysRemaining(dueDate)
-
-  if (remaining) {
-    return (
-      <p className="flex items-center gap-2 text-sm">
-        <span className="text-muted-foreground">Due: {formatDate(dueDate)}</span>
-        {remaining.days <= 0 ? (
-          <span className="inline-flex items-center gap-1 rounded bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
-            <AlertTriangle className="size-3" />
-            Overdue
-          </span>
-        ) : remaining.isUrgent ? (
-          <span className="inline-flex items-center gap-1 rounded bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
-            <AlertTriangle className="size-3" />
-            {remaining.days} days left
-          </span>
-        ) : (
-          <span className="text-muted-foreground">{remaining.days} days left</span>
-        )}
-      </p>
-    )
-  }
-
-  return (
-    <p className="text-sm text-muted-foreground">Due: {formatDate(dueDate)}</p>
-  )
-}
-
-function BOLStatusBadge({ status }: { status: string }) {
-  if (status === "Cleared" || status === "Customs Cleared") {
-    return (
-      <Badge className="bg-success/10 text-success hover:bg-success/20">
-        <Check className="mr-1 size-3" />
-        Customs Cleared
-      </Badge>
-    )
-  }
-  if (status === "Delivered" || status === "Closed") {
-    return (
-      <Badge className="bg-blue-500/10 text-blue-600 hover:bg-blue-500/20">
-        <Check className="mr-1 size-3" />
-        {status}
-      </Badge>
-    )
-  }
-  if (status === "Delivering") {
-    return (
-      <Badge className="bg-purple-500/10 text-purple-600 hover:bg-purple-500/20">
-        <Ship className="mr-1 size-3" />
-        Delivering
-      </Badge>
-    )
-  }
-  if (status === "Booked") {
-    return (
-      <Badge variant="outline" className="text-muted-foreground">
-        Booked
-      </Badge>
-    )
-  }
-  return (
-    <Badge className="bg-amber-500/10 text-amber-600 hover:bg-amber-500/20">
-      <span className="mr-1.5 size-2 animate-pulse rounded-full bg-amber-500" />
-      {status === "In Transit" ? "In Transit" : status}
-    </Badge>
-  )
-}

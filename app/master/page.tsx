@@ -1,5 +1,6 @@
 import { SidebarLayout } from "@/components/sidebar-layout"
 import { MasterDashboard } from "@/components/master/master-dashboard"
+import { getMasterData } from "@/lib/master-data"
 import { FileSpreadsheet } from "lucide-react"
 
 export const metadata = {
@@ -7,14 +8,16 @@ export const metadata = {
   description: "Comprehensive supply chain analysis with 8 sheets",
 }
 
-export default function MasterPage() {
+export default async function MasterPage() {
+  const data = await getMasterData()
+
   return (
     <SidebarLayout
       title="Master Table"
       description="8-sheet analysis: Dashboard, Orders, Logistics, Tariff, Price, Profit, Containers, Config"
       icon={<FileSpreadsheet className="h-8 w-8" />}
     >
-      <MasterDashboard />
+      <MasterDashboard data={data} />
     </SidebarLayout>
   )
 }

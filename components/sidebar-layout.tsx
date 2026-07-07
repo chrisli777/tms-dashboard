@@ -12,7 +12,10 @@ interface SidebarLayoutProps {
   title?: string
   description?: string
   icon?: React.ReactNode
+  /** Navigate to a fixed route when the back arrow is clicked. */
   backHref?: string
+  /** Show the back arrow but return to the previous page via browser history. */
+  showBack?: boolean
 }
 
 export function SidebarLayout({
@@ -21,8 +24,11 @@ export function SidebarLayout({
   description,
   icon,
   backHref,
+  showBack,
 }: SidebarLayoutProps) {
   const router = useRouter()
+
+  const showBackButton = backHref !== undefined || showBack
 
   const handleBack = () => {
     if (backHref) {
@@ -38,7 +44,7 @@ export function SidebarLayout({
       <SidebarInset className="relative">
         {title && (
           <header className="flex shrink-0 items-center gap-3 border-b border-border bg-card px-6 py-4">
-            {backHref !== undefined && (
+            {showBackButton && (
               <Button
                 variant="ghost"
                 size="icon"

@@ -8,33 +8,14 @@ interface DispatchKPICardsProps {
   data: DispatchContainer[]
 }
 
-function formatCurrency(value: number) {
-  if (value >= 1000000) {
-    return `$${(value / 1000000).toFixed(1)}M`
-  }
-  if (value >= 1000) {
-    return `$${(value / 1000).toFixed(0)}K`
-  }
-  return `$${value.toFixed(0)}`
-}
-
-function formatWeight(value: number) {
-  if (value >= 1000) {
-    return `${(value / 1000).toFixed(1)}t`
-  }
-  return `${value.toFixed(0)} kg`
-}
-
 export function DispatchKPICards({ data }: DispatchKPICardsProps) {
   const stats = useMemo(() => {
     const totalContainers = data.length
-    const scheduled = data.filter((c) => c.status === "Scheduled").length
-    const delivered = data.filter((c) => c.status === "Delivered").length
+    const bols = new Set(data.map((c) => c.bol).filter(Boolean)).size
+    const suppliers = new Set(data.map((c) => c.supplier).filter(Boolean)).size
     const totalQty = data.reduce((sum, c) => sum + c.totalQty, 0)
-    const totalWeight = data.reduce((sum, c) => sum + c.totalWeight, 0)
-    const totalValue = data.reduce((sum, c) => sum + c.totalAmount, 0)
 
-    return { totalContainers, scheduled, delivered, totalQty, totalWeight, totalValue }
+    return { totalContainers, bols, suppliers, totalQty }
   }, [data])
 
   const cards = [
@@ -51,24 +32,24 @@ export function DispatchKPICards({ data }: DispatchKPICardsProps) {
     },
 
     {
-      label: "SCHEDULED",
-      value: stats.scheduled,
+      label: "BOLS",
+      value: stats.bols,
       color: "text-amber-600",
       bgColor: "bg-amber-50",
       icon: (
         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
         </svg>
       ),
     },
     {
-      label: "DELIVERED",
-      value: stats.delivered,
+      label: "SUPPLIERS",
+      value: stats.suppliers,
       color: "text-emerald-600",
       bgColor: "bg-emerald-50",
       icon: (
         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+          <path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/>
         </svg>
       ),
     },
@@ -86,32 +67,10 @@ export function DispatchKPICards({ data }: DispatchKPICardsProps) {
         </svg>
       ),
     },
-    {
-      label: "TOTAL WEIGHT",
-      value: formatWeight(stats.totalWeight),
-      color: "text-slate-600",
-      bgColor: "bg-slate-50",
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="5" r="3"/><line x1="12" x2="12" y1="22" y2="8"/><path d="M5 12H2a10 10 0 0 0 20 0h-3"/>
-        </svg>
-      ),
-    },
-    {
-      label: "TOTAL VALUE",
-      value: formatCurrency(stats.totalValue),
-      color: "text-green-600",
-      bgColor: "bg-green-50",
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
-        </svg>
-      ),
-    },
   ]
 
   return (
-    <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+    <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
       {cards.map((card) => (
         <Card key={card.label} className={`${card.bgColor} border-0`}>
           <CardContent className="flex flex-col gap-1 p-4">
