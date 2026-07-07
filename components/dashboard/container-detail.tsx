@@ -13,18 +13,14 @@ import {
 import { TrackingDateCell } from "./tracking-date-cell"
 import { ManualTrackingEditor } from "./manual-tracking-editor"
 import { DispatchStatusSelect } from "@/components/dispatch/dispatch-status-select"
+import { DispatchDateCell } from "@/components/dispatch/dispatch-date-cell"
+import { DispatchAssignmentCell } from "@/components/dispatch/dispatch-assignment-cell"
+import { WAREHOUSE_OPTIONS, VENDOR_OPTIONS } from "@/lib/dispatch-options"
 import { etdCellState, etaCellState } from "@/lib/tracking-rules"
 import type { DispatchContainer } from "@/lib/dispatch-data"
 
 interface ContainerDetailProps {
   container: DispatchContainer
-}
-
-function formatCurrency(value: number) {
-  return `$${value.toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`
 }
 
 export function ContainerDetail({ container }: ContainerDetailProps) {
@@ -60,11 +56,55 @@ export function ContainerDetail({ container }: ContainerDetailProps) {
             ata={container.ata}
             label="Edit dates"
           />
+          <span className="flex items-center gap-1.5 text-muted-foreground">
+            <span className="font-semibold">Warehouse:</span>
+            <DispatchAssignmentCell
+              container={container.container}
+              bol={container.bol}
+              field="warehouse"
+              value={container.warehouse}
+              options={WAREHOUSE_OPTIONS}
+              placeholder="Warehouse"
+              label="Warehouse"
+            />
+          </span>
+          <span className="flex items-center gap-1.5 text-muted-foreground">
+            <span className="font-semibold">Vendor:</span>
+            <DispatchAssignmentCell
+              container={container.container}
+              bol={container.bol}
+              field="vendor"
+              value={container.vendor}
+              options={VENDOR_OPTIONS}
+              placeholder="Assign"
+              label="Vendor"
+            />
+          </span>
+          <span className="flex items-center gap-1.5 text-muted-foreground">
+            <span className="font-semibold">LFD:</span>
+            <DispatchDateCell
+              container={container.container}
+              bol={container.bol}
+              field="lfd"
+              value={container.lfd}
+              label="LFD"
+            />
+          </span>
+          <span className="flex items-center gap-1.5 text-muted-foreground">
+            <span className="font-semibold">Planned Date:</span>
+            <DispatchDateCell
+              container={container.container}
+              bol={container.bol}
+              field="planned_pickup_date"
+              value={container.planned_pickup_date}
+              label="Planned Date"
+            />
+          </span>
         </div>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2">
         <Card className="border-primary/20 bg-primary/5 py-4">
           <CardContent className="px-4">
             <div className="text-2xl font-bold tabular-nums text-primary">
@@ -82,26 +122,6 @@ export function ContainerDetail({ container }: ContainerDetailProps) {
             </div>
             <p className="text-xs font-semibold tracking-wider text-muted-foreground">
               TOTAL QTY
-            </p>
-          </CardContent>
-        </Card>
-        <Card className="border-primary/20 bg-primary/5 py-4">
-          <CardContent className="px-4">
-            <div className="text-2xl font-bold tabular-nums text-primary">
-              {formatCurrency(container.totalAmount)}
-            </div>
-            <p className="text-xs font-semibold tracking-wider text-muted-foreground">
-              TOTAL VALUE
-            </p>
-          </CardContent>
-        </Card>
-        <Card className="border-primary/20 bg-primary/5 py-4">
-          <CardContent className="px-4">
-            <div className="text-2xl font-bold tabular-nums text-primary">
-              {container.totalWeight.toLocaleString()} kg
-            </div>
-            <p className="text-xs font-semibold tracking-wider text-muted-foreground">
-              TOTAL WEIGHT
             </p>
           </CardContent>
         </Card>

@@ -92,6 +92,7 @@ export function DispatchTable({ data, sortKey, sortDir, onSort }: DispatchTableP
             <TableHead className="w-10"></TableHead>
             <TableHead>CONTAINER</TableHead>
             <TableHead>BOL</TableHead>
+            <SortableHead label="WAREHOUSE" sortKey="warehouse" activeKey={sortKey} dir={sortDir} onSort={onSort} />
             <SortableHead label="SUPPLIER" sortKey="supplier" activeKey={sortKey} dir={sortDir} onSort={onSort} />
             <SortableHead label="STATUS" sortKey="status" activeKey={sortKey} dir={sortDir} onSort={onSort} />
             <SortableHead label="ATD" sortKey="atd" activeKey={sortKey} dir={sortDir} onSort={onSort} />
@@ -104,7 +105,6 @@ export function DispatchTable({ data, sortKey, sortDir, onSort }: DispatchTableP
               dir={sortDir}
               onSort={onSort}
             />
-            <SortableHead label="WAREHOUSE" sortKey="warehouse" activeKey={sortKey} dir={sortDir} onSort={onSort} />
             <TableHead>VENDOR</TableHead>
             <TableHead className="text-right">QTY</TableHead>
           </TableRow>
@@ -143,6 +143,17 @@ export function DispatchTable({ data, sortKey, sortDir, onSort }: DispatchTableP
                   </Link>
                 </TableCell>
                 <TableCell>
+                  <DispatchAssignmentCell
+                    container={container.container}
+                    bol={container.bol}
+                    field="warehouse"
+                    value={container.warehouse}
+                    options={WAREHOUSE_OPTIONS}
+                    placeholder="Warehouse"
+                    label="Warehouse"
+                  />
+                </TableCell>
+                <TableCell>
                   <span className="font-medium text-primary">{container.supplier}</span>
                 </TableCell>
                 <TableCell>
@@ -174,17 +185,6 @@ export function DispatchTable({ data, sortKey, sortDir, onSort }: DispatchTableP
                     field="planned_pickup_date"
                     value={container.planned_pickup_date}
                     label="Planned Date"
-                  />
-                </TableCell>
-                <TableCell>
-                  <DispatchAssignmentCell
-                    container={container.container}
-                    bol={container.bol}
-                    field="warehouse"
-                    value={container.warehouse}
-                    options={WAREHOUSE_OPTIONS}
-                    placeholder="Warehouse"
-                    label="Warehouse"
                   />
                 </TableCell>
                 <TableCell>
