@@ -36,6 +36,8 @@ export interface DispatchContainer {
   warehouse: string
   /** Trucking company arranging pickup (stored in `trucking_company`). */
   vendor: string | null
+  /** True when this container was manually added in the Dispatcher (deletable). */
+  isManual: boolean
   totalQty: number
   totalWeight: number
   totalAmount: number
@@ -109,6 +111,7 @@ function groupRowsToContainers(rows: ViewRow[]): DispatchContainer[] {
         planned_pickup_date: null,
         warehouse: "Kent",
         vendor: null,
+        isManual: false,
         totalQty: 0,
         totalWeight: 0,
         totalAmount: 0,
@@ -157,7 +160,7 @@ async function mergeDispatchFields(containers: DispatchContainer[]): Promise<voi
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from("shipment_containers")
-    .select("container_number, lfd, planned_pickup_date, destination, trucking_company")
+    .select("container_number, lfd, planned_pickup_date, destination, trucking_company, is_manual")
     .in("container_number", numbers)
 
   if (error) {
@@ -170,6 +173,7 @@ async function mergeDispatchFields(containers: DispatchContainer[]): Promise<voi
     planned_pickup_date: string | null
     destination: string | null
     trucking_company: string | null
+    is_manual: boolean
   }
   const byContainer = new Map<string, MergedFields>()
   for (const row of (data ?? []) as {
@@ -178,6 +182,7 @@ async function mergeDispatchFields(containers: DispatchContainer[]): Promise<voi
     planned_pickup_date: string | null
     destination: string | null
     trucking_company: string | null
+    is_manual: boolean | null
   }[]) {
     const key = row.container_number ?? ""
     if (!key) continue
@@ -187,6 +192,7 @@ async function mergeDispatchFields(containers: DispatchContainer[]): Promise<voi
       planned_pickup_date: existing?.planned_pickup_date ?? row.planned_pickup_date ?? null,
       destination: existing?.destination ?? row.destination ?? null,
       trucking_company: existing?.trucking_company ?? row.trucking_company ?? null,
+      is_manual: existing?.is_manual || Boolean(row.is_manual),
     })
   }
 
@@ -197,6 +203,7 @@ async function mergeDispatchFields(containers: DispatchContainer[]): Promise<voi
     // Stored override wins; otherwise fall back to the SKU-derived default.
     c.warehouse = fields?.destination ?? defaultWarehouseForSkus(c.items.map((i) => i.sku))
     c.vendor = fields?.trucking_company ?? null
+    c.isManual = fields?.is_manual ?? false
   }
 }
 

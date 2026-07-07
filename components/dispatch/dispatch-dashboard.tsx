@@ -4,6 +4,7 @@ import { useState, useMemo } from "react"
 import { DispatchKPICards } from "./dispatch-kpi-cards"
 import { DispatchFilterBar } from "./dispatch-filter-bar"
 import { DispatchTable, type SortKey, type SortDir } from "./dispatch-table"
+import { AddContainerDialog } from "./add-container-dialog"
 import { getStatusStep } from "@/lib/status"
 import {
   type DateFilters,
@@ -117,6 +118,11 @@ export function DispatchDashboard({ initialData }: DispatchDashboardProps) {
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-6">
+      {/* Header actions */}
+      <div className="flex items-center justify-end">
+        <AddContainerDialog />
+      </div>
+
       {/* KPI Cards */}
       <DispatchKPICards data={filteredData} />
 

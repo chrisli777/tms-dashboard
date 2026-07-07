@@ -14,6 +14,7 @@ import { ChevronRight, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
 import { DispatchStatusSelect } from "./dispatch-status-select"
 import { DispatchDateCell } from "./dispatch-date-cell"
 import { DispatchAssignmentCell } from "./dispatch-assignment-cell"
+import { DeleteContainerButton } from "./delete-container-button"
 import { WAREHOUSE_OPTIONS, VENDOR_OPTIONS } from "@/lib/dispatch-options"
 import type { DispatchContainer } from "@/lib/dispatch-data"
 
@@ -107,12 +108,13 @@ export function DispatchTable({ data, sortKey, sortDir, onSort }: DispatchTableP
             />
             <TableHead>VENDOR</TableHead>
             <TableHead className="text-right">QTY</TableHead>
+            <TableHead className="w-10"></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {data.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={12} className="h-24 text-center text-muted-foreground">
+              <TableCell colSpan={13} className="h-24 text-center text-muted-foreground">
                 No containers found
               </TableCell>
             </TableRow>
@@ -200,6 +202,11 @@ export function DispatchTable({ data, sortKey, sortDir, onSort }: DispatchTableP
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
                   {container.totalQty.toLocaleString()}
+                </TableCell>
+                <TableCell className="text-right">
+                  {container.isManual && (
+                    <DeleteContainerButton container={container.container} variant="icon" />
+                  )}
                 </TableCell>
               </TableRow>
             ))

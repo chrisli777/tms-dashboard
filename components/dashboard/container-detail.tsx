@@ -15,6 +15,7 @@ import { ManualTrackingEditor } from "./manual-tracking-editor"
 import { DispatchStatusSelect } from "@/components/dispatch/dispatch-status-select"
 import { DispatchDateCell } from "@/components/dispatch/dispatch-date-cell"
 import { DispatchAssignmentCell } from "@/components/dispatch/dispatch-assignment-cell"
+import { DeleteContainerButton } from "@/components/dispatch/delete-container-button"
 import { WAREHOUSE_OPTIONS, VENDOR_OPTIONS } from "@/lib/dispatch-options"
 import { etdCellState, etaCellState } from "@/lib/tracking-rules"
 import type { DispatchContainer } from "@/lib/dispatch-data"
@@ -43,6 +44,18 @@ export function ContainerDetail({ container }: ContainerDetailProps) {
           <span className="font-semibold">ETA/ATA:</span>
           <TrackingDateCell state={etaCellState(container)} kind="eta" inline />
         </span>
+        {container.isManual && (
+          <div className="ml-auto flex items-center gap-3">
+            <span className="rounded-full border border-border bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+              Manually added
+            </span>
+            <DeleteContainerButton
+              container={container.container}
+              variant="button"
+              redirectTo="/dispatch"
+            />
+          </div>
+        )}
       </div>
 
       {/* Dispatch details */}

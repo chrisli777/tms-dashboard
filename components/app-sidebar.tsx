@@ -1,12 +1,22 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { LayoutGrid, Ship, Truck, FileSpreadsheet, ChevronLeft, ChevronRight, Warehouse } from "lucide-react"
+import { usePathname, useRouter } from "next/navigation"
+import {
+  LayoutGrid,
+  Ship,
+  Truck,
+  FileSpreadsheet,
+  ChevronLeft,
+  ChevronRight,
+  Warehouse,
+  LogOut,
+} from "lucide-react"
 import { useSidebar } from "@/components/ui/sidebar"
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuItem,
@@ -43,7 +53,14 @@ const navItems = [
 
 export function AppSidebar() {
   const pathname = usePathname()
+  const router = useRouter()
   const { toggleSidebar, state } = useSidebar()
+
+  async function handleLogout() {
+    await fetch("/api/auth/logout", { method: "POST" })
+    router.replace("/login")
+    router.refresh()
+  }
 
   const isActive = (href: string) => {
     if (href === "/") {
@@ -100,6 +117,22 @@ export function AppSidebar() {
           ))}
         </SidebarMenu>
       </SidebarContent>
+
+      {/* Logout */}
+      <SidebarFooter className="px-2 pb-3">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              tooltip="Sign out"
+              onClick={handleLogout}
+              className="h-10 gap-3 rounded-md px-3 text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800 hover:text-white"
+            >
+              <LogOut className="h-5 w-5 shrink-0" />
+              <span>Sign out</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
     </Sidebar>
   )
 }
