@@ -14,13 +14,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Username and password are required" }, { status: 400 })
     }
 
-    const token = await verifyCredentials(username, password)
-    if (!token) {
+    const result = await verifyCredentials(username, password)
+    if (!result) {
       return NextResponse.json({ error: "Invalid username or password" }, { status: 401 })
     }
 
     const cookieStore = await cookies()
-    cookieStore.set(SESSION_COOKIE, token, {
+    cookieStore.set(SESSION_COOKIE, result.token, {
       httpOnly: true,
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
@@ -28,7 +28,7 @@ export async function POST(request: Request) {
       maxAge: 60 * 60 * 24 * 7, // 7 days
     })
 
-    return NextResponse.json({ ok: true })
+    return NextResponse.json({ ok: true, role: result.role })
   } catch {
     return NextResponse.json({ error: "Login failed" }, { status: 500 })
   }

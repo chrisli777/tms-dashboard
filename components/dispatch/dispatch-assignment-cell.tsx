@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { useCanEdit } from "@/components/providers/role-provider"
 
 interface DispatchAssignmentCellProps {
   container: string
@@ -39,8 +40,18 @@ export function DispatchAssignmentCell({
   label,
 }: DispatchAssignmentCellProps) {
   const router = useRouter()
+  const canEdit = useCanEdit()
   const [current, setCurrent] = useState(value ?? "")
   const [saving, setSaving] = useState(false)
+
+  // Read-only visitors see the assigned value as plain text.
+  if (!canEdit) {
+    return (
+      <span className="px-1 text-sm text-foreground">
+        {current || <span className="text-muted-foreground">—</span>}
+      </span>
+    )
+  }
 
   async function handleChange(next: string) {
     const prev = current

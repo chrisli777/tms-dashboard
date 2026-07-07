@@ -13,6 +13,7 @@ import {
   LogOut,
 } from "lucide-react"
 import { useSidebar } from "@/components/ui/sidebar"
+import { useRole } from "@/components/providers/role-provider"
 import {
   Sidebar,
   SidebarContent,
@@ -33,11 +34,13 @@ const navItems = [
     title: "Shipment Tracking",
     href: "/shipments",
     icon: Ship,
+    visitor: true,
   },
   {
     title: "Dispatcher",
     href: "/dispatch",
     icon: Truck,
+    visitor: true,
   },
   {
     title: "Warehouse Receiving",
@@ -55,6 +58,11 @@ export function AppSidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const { toggleSidebar, state } = useSidebar()
+  const role = useRole()
+
+  // Visitors are read-only and can only reach a subset of the app.
+  const visibleNavItems =
+    role === "visitor" ? navItems.filter((item) => item.visitor) : navItems
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" })
@@ -100,7 +108,7 @@ export function AppSidebar() {
       {/* Navigation menu */}
       <SidebarContent className="px-2 pt-2">
         <SidebarMenu>
-          {navItems.map((item) => (
+          {visibleNavItems.map((item) => (
             <SidebarMenuItem key={item.href}>
               <SidebarMenuButton
                 asChild

@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select"
 import { WAREHOUSE_OPTIONS, VENDOR_OPTIONS } from "@/lib/dispatch-options"
 import { DISPATCH_STATUS_OPTIONS, dispatchTokenFromLabel } from "@/lib/status"
+import { useCanEdit } from "@/components/providers/role-provider"
 
 const NONE = "__none__"
 
@@ -69,10 +70,14 @@ function Field({
 
 export function AddContainerDialog() {
   const router = useRouter()
+  const canEdit = useCanEdit()
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState<FormState>(emptyForm)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+
+  // Read-only visitors can't add containers.
+  if (!canEdit) return null
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }))

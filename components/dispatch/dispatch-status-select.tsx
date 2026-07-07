@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/select"
 import { StatusBadge } from "@/components/ui/status-badge"
 import { DISPATCH_STATUS_OPTIONS } from "@/lib/status"
+import { useCanEdit } from "@/components/providers/role-provider"
 
 interface DispatchStatusSelectProps {
   container: string
@@ -41,13 +42,14 @@ export function DispatchStatusSelect({
   status,
 }: DispatchStatusSelectProps) {
   const router = useRouter()
+  const canEdit = useCanEdit()
   const [value, setValue] = useState(status)
   const [saving, setSaving] = useState(false)
 
-  // Not arrived yet (Pending / In Transit): the dispatch stages don't apply, so
-  // show the tracking status read-only. It becomes editable once it Arrives.
-  if (!EDITABLE_STATUSES.has(status)) {
-    return <StatusBadge status={status} />
+  // Read-only visitors and not-yet-arrived containers (Pending / In Transit)
+  // show the status as a static badge rather than an editable dropdown.
+  if (!canEdit || !EDITABLE_STATUSES.has(status)) {
+    return <StatusBadge status={value} />
   }
 
   async function handleChange(next: string) {

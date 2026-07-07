@@ -11,6 +11,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { useCanEdit } from "@/components/providers/role-provider"
 
 interface ManualTrackingEditorProps {
   container: string
@@ -35,11 +36,15 @@ export function ManualTrackingEditor({
   label,
 }: ManualTrackingEditorProps) {
   const router = useRouter()
+  const canEdit = useCanEdit()
   const [open, setOpen] = useState(false)
   const [atdValue, setAtdValue] = useState(atd ?? "")
   const [ataValue, setAtaValue] = useState(ata ?? "")
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Read-only visitors can't edit actual tracking dates.
+  if (!canEdit) return null
 
   // Re-sync local state whenever the popover is opened.
   function handleOpenChange(next: boolean) {

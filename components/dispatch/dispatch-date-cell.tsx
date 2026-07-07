@@ -10,6 +10,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { CalendarPlus, Pencil } from "lucide-react"
+import { useCanEdit } from "@/components/providers/role-provider"
 
 interface DispatchDateCellProps {
   container: string
@@ -46,6 +47,7 @@ export function DispatchDateCell({
   label,
 }: DispatchDateCellProps) {
   const router = useRouter()
+  const canEdit = useCanEdit()
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState(value ?? "")
   const [saving, setSaving] = useState(false)
@@ -74,6 +76,15 @@ export function DispatchDateCell({
   }
 
   const formatted = formatDate(value)
+
+  // Read-only visitors see the value as plain text, no edit affordance.
+  if (!canEdit) {
+    return (
+      <span className="px-2 py-1 text-sm tabular-nums text-muted-foreground">
+        {formatted ?? "—"}
+      </span>
+    )
+  }
 
   return (
     <div onClick={(e) => e.stopPropagation()}>

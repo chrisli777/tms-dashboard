@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Upload, FileSpreadsheet, Loader2, CheckCircle2, AlertCircle, ArrowRight } from "lucide-react"
 import { TrackingDateCell } from "./tracking-date-cell"
 import { statusLabel } from "@/lib/status"
+import { useCanEdit } from "@/components/providers/role-provider"
 import type {
   DateCellState,
   ParsedTrackingRecord,
@@ -47,12 +48,16 @@ type Phase = "idle" | "parsing" | "preview" | "applying" | "done"
 
 export function UploadTrackingDialog() {
   const router = useRouter()
+  const canEdit = useCanEdit()
   const [open, setOpen] = useState(false)
   const [phase, setPhase] = useState<Phase>("idle")
   const [error, setError] = useState<string | null>(null)
   const [preview, setPreview] = useState<PreviewResponse | null>(null)
   const [result, setResult] = useState<{ matchedBols: number; updatedContainers: number; unmatched: string[] } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Read-only visitors can't upload tracking files.
+  if (!canEdit) return null
 
   function reset() {
     setPhase("idle")

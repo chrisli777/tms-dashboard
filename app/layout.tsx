@@ -1,7 +1,10 @@
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
+import { cookies } from 'next/headers'
 import { Analytics } from '@vercel/analytics/next'
 import { SWRProvider } from '@/components/providers/swr-provider'
+import { RoleProvider } from '@/components/providers/role-provider'
+import { SESSION_COOKIE, getRoleForToken } from '@/lib/auth'
 import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"] });
@@ -30,17 +33,22 @@ export const metadata: Metadata = {
   },
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  const cookieStore = await cookies()
+  const role = await getRoleForToken(cookieStore.get(SESSION_COOKIE)?.value)
+
   return (
     <html lang="en">
       <body className="font-sans antialiased">
-        <SWRProvider>
-          {children}
-        </SWRProvider>
+        <RoleProvider role={role}>
+          <SWRProvider>
+            {children}
+          </SWRProvider>
+        </RoleProvider>
         <Analytics />
       </body>
     </html>

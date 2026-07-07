@@ -6,6 +6,7 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { OneDriveStatus } from "@/components/onedrive-status"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
+import { useCanEdit } from "@/components/providers/role-provider"
 
 interface SidebarLayoutProps {
   children: React.ReactNode
@@ -27,6 +28,7 @@ export function SidebarLayout({
   showBack,
 }: SidebarLayoutProps) {
   const router = useRouter()
+  const canEdit = useCanEdit()
 
   const showBackButton = backHref !== undefined || showBack
 
@@ -67,10 +69,12 @@ export function SidebarLayout({
                 <span className="text-sm text-muted-foreground">{description}</span>
               )}
             </div>
-            {/* OneDrive status in top right */}
-            <div className="ml-auto">
-              <OneDriveStatus />
-            </div>
+            {/* OneDrive status in top right (editors only) */}
+            {canEdit && (
+              <div className="ml-auto">
+                <OneDriveStatus />
+              </div>
+            )}
           </header>
         )}
         <div className="flex flex-1 flex-col">{children}</div>

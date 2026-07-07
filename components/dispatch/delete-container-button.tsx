@@ -15,6 +15,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { useCanEdit } from "@/components/providers/role-provider"
 
 interface DeleteContainerButtonProps {
   container: string
@@ -30,8 +31,12 @@ export function DeleteContainerButton({
   redirectTo,
 }: DeleteContainerButtonProps) {
   const router = useRouter()
+  const canEdit = useCanEdit()
   const [open, setOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
+
+  // Read-only visitors can't delete containers.
+  if (!canEdit) return null
 
   async function handleDelete() {
     setDeleting(true)

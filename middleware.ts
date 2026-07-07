@@ -1,10 +1,19 @@
 import { NextResponse, type NextRequest } from "next/server"
-import { SESSION_COOKIE, getExpectedSessionToken } from "@/lib/auth"
+import {
+  SESSION_COOKIE,
+  getRoleForToken,
+  isPathAllowedForVisitor,
+  VISITOR_HOME,
+} from "@/lib/auth"
 
 /**
- * Simple login gate. Any request without a valid session cookie is redirected
- * to /login (except the login page itself and the auth API). Already-logged-in
- * users hitting /login are sent to the home page.
+ * Login gate + role-based access control.
+ *
+ * - Any request without a valid session cookie is redirected to /login
+ *   (except the login page itself and the auth API).
+ * - Already-logged-in users hitting /login are sent to their home page.
+ * - The `visitor` role is read-only: it may only view the Shipment Tracking and
+ *   Dispatcher areas, and may not perform any mutating API request.
  *
  * The matcher below already excludes Next internals and static assets, so we
  * only special-case the login route and auth endpoints here.
@@ -18,13 +27,14 @@ export async function middleware(request: NextRequest) {
   // Never gate the auth endpoints themselves.
   if (isAuthApi) return NextResponse.next()
 
-  const expected = await getExpectedSessionToken()
   const token = request.cookies.get(SESSION_COOKIE)?.value
-  const isAuthed = expected !== null && token === expected
+  const role = await getRoleForToken(token)
+  const isAuthed = role !== null
 
   if (isLoginPage) {
     if (isAuthed) {
-      return NextResponse.redirect(new URL("/", request.url))
+      const home = role === "visitor" ? VISITOR_HOME : "/"
+      return NextResponse.redirect(new URL(home, request.url))
     }
     return NextResponse.next()
   }
@@ -36,6 +46,25 @@ export async function middleware(request: NextRequest) {
       loginUrl.searchParams.set("next", pathname + request.nextUrl.search)
     }
     return NextResponse.redirect(loginUrl)
+  }
+
+  // Role-based restrictions for the read-only visitor account.
+  if (role === "visitor") {
+    const isApi = pathname.startsWith("/api/")
+
+    if (isApi) {
+      // Visitors may read (GET/HEAD) but never mutate.
+      const method = request.method.toUpperCase()
+      if (method !== "GET" && method !== "HEAD") {
+        return NextResponse.json({ error: "Read-only access" }, { status: 403 })
+      }
+      return NextResponse.next()
+    }
+
+    // Restrict page navigation to the allowed areas.
+    if (!isPathAllowedForVisitor(pathname)) {
+      return NextResponse.redirect(new URL(VISITOR_HOME, request.url))
+    }
   }
 
   return NextResponse.next()
