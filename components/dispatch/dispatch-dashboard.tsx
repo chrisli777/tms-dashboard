@@ -5,7 +5,8 @@ import { DispatchKPICards } from "./dispatch-kpi-cards"
 import { DispatchFilterBar } from "./dispatch-filter-bar"
 import { DispatchTable, type SortKey, type SortDir } from "./dispatch-table"
 import { AddContainerDialog } from "./add-container-dialog"
-import { getStatusStep } from "@/lib/status"
+import { getStatusStep, DISPATCH_STATUS_OPTIONS } from "@/lib/status"
+import { WAREHOUSE_OPTIONS } from "@/lib/dispatch-options"
 import {
   type DateFilters,
   type DateFilterField,
@@ -40,14 +41,20 @@ export function DispatchDashboard({ initialData }: DispatchDashboardProps) {
     return [...new Set(initialData.map((c) => c.supplier).filter(Boolean))].sort()
   }, [initialData])
 
+  // Always offer every valid dispatch status, plus any unexpected value that
+  // happens to be in the data, so the filter list is stable regardless of what
+  // is currently loaded.
   const statusOptions = useMemo(() => {
-    return [...new Set(initialData.map((c) => c.status).filter(Boolean))].sort(
+    const present = initialData.map((c) => c.status).filter(Boolean)
+    return [...new Set([...DISPATCH_STATUS_OPTIONS, ...present])].sort(
       (a, b) => getStatusStep(a) - getStatusStep(b)
     )
   }, [initialData])
 
+  // Always offer every valid warehouse, plus any unexpected value in the data.
   const warehouseOptions = useMemo(() => {
-    return [...new Set(initialData.map((c) => c.warehouse).filter(Boolean))].sort()
+    const present = initialData.map((c) => c.warehouse).filter(Boolean)
+    return [...new Set([...WAREHOUSE_OPTIONS, ...present])].sort()
   }, [initialData])
 
   const filteredData = useMemo(() => {
