@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { effectiveStatus } from "@/lib/status"
+import { defaultWarehouseForSkus } from "@/lib/dispatch-options"
 
 /* ── Types ── */
 
@@ -28,6 +29,13 @@ export interface DispatchContainer {
   lfd: string | null
   /** Planned pickup date — manually editable in the Dispatcher. */
   planned_pickup_date: string | null
+  /**
+   * Destination warehouse. Defaults from SKUs (Moses Lake for HX 61415/824433,
+   * else Kent) but is manually overridable and stored in `destination`.
+   */
+  warehouse: string
+  /** Trucking company arranging pickup (stored in `trucking_company`). */
+  vendor: string | null
   totalQty: number
   totalWeight: number
   totalAmount: number
@@ -99,6 +107,8 @@ function groupRowsToContainers(rows: ViewRow[]): DispatchContainer[] {
         // since order_management_view does not expose these columns.
         lfd: null,
         planned_pickup_date: null,
+        warehouse: "Kent",
+        vendor: null,
         totalQty: 0,
         totalWeight: 0,
         totalAmount: 0,
@@ -131,32 +141,43 @@ function groupRowsToContainers(rows: ViewRow[]): DispatchContainer[] {
 /* ── Server-side data fetching ── */
 
 /**
- * The Dispatcher's manually-managed dates (LFD + planned pickup) live on
- * shipment_containers, which order_management_view does not expose. The anon
- * role can't read that base table, so we use the admin client here (same as the
- * write path). Rows of the same container share these dates, so we take the
- * first non-null value.
+ * The Dispatcher's manually-managed fields (LFD, planned pickup, destination
+ * warehouse, trucking vendor) live on shipment_containers, which
+ * order_management_view does not expose. The anon role can't read that base
+ * table, so we use the admin client here (same as the write path). Rows of the
+ * same container share these values, so we take the first non-null value.
+ *
+ * The warehouse is resolved as the stored `destination` override if present,
+ * otherwise a default derived from the container's SKUs.
  */
-async function mergeDispatchDates(containers: DispatchContainer[]): Promise<void> {
+async function mergeDispatchFields(containers: DispatchContainer[]): Promise<void> {
   const numbers = containers.map((c) => c.container).filter(Boolean)
   if (numbers.length === 0) return
 
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from("shipment_containers")
-    .select("container_number, lfd, planned_pickup_date")
+    .select("container_number, lfd, planned_pickup_date, destination, trucking_company")
     .in("container_number", numbers)
 
   if (error) {
-    console.error("Failed to fetch dispatch dates:", error)
+    console.error("Failed to fetch dispatch fields:", error)
     return
   }
 
-  const byContainer = new Map<string, { lfd: string | null; planned_pickup_date: string | null }>()
+  type MergedFields = {
+    lfd: string | null
+    planned_pickup_date: string | null
+    destination: string | null
+    trucking_company: string | null
+  }
+  const byContainer = new Map<string, MergedFields>()
   for (const row of (data ?? []) as {
     container_number: string | null
     lfd: string | null
     planned_pickup_date: string | null
+    destination: string | null
+    trucking_company: string | null
   }[]) {
     const key = row.container_number ?? ""
     if (!key) continue
@@ -164,15 +185,18 @@ async function mergeDispatchDates(containers: DispatchContainer[]): Promise<void
     byContainer.set(key, {
       lfd: existing?.lfd ?? row.lfd ?? null,
       planned_pickup_date: existing?.planned_pickup_date ?? row.planned_pickup_date ?? null,
+      destination: existing?.destination ?? row.destination ?? null,
+      trucking_company: existing?.trucking_company ?? row.trucking_company ?? null,
     })
   }
 
   for (const c of containers) {
-    const dates = byContainer.get(c.container)
-    if (dates) {
-      c.lfd = dates.lfd
-      c.planned_pickup_date = dates.planned_pickup_date
-    }
+    const fields = byContainer.get(c.container)
+    c.lfd = fields?.lfd ?? null
+    c.planned_pickup_date = fields?.planned_pickup_date ?? null
+    // Stored override wins; otherwise fall back to the SKU-derived default.
+    c.warehouse = fields?.destination ?? defaultWarehouseForSkus(c.items.map((i) => i.sku))
+    c.vendor = fields?.trucking_company ?? null
   }
 }
 
@@ -193,7 +217,7 @@ export async function fetchAllContainers(): Promise<DispatchContainer[]> {
   }
 
   const containers = groupRowsToContainers((data ?? []) as ViewRow[])
-  await mergeDispatchDates(containers)
+  await mergeDispatchFields(containers)
   return containers.sort((a, b) => a.container.localeCompare(b.container))
 }
 
@@ -212,6 +236,6 @@ export async function fetchContainerById(
   }
 
   const containers = groupRowsToContainers(data as ViewRow[])
-  await mergeDispatchDates(containers)
+  await mergeDispatchFields(containers)
   return containers[0] ?? null
 }

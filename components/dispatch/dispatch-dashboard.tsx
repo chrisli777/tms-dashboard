@@ -30,6 +30,7 @@ export function DispatchDashboard({ initialData }: DispatchDashboardProps) {
   const [search, setSearch] = useState("")
   const [supplierFilter, setSupplierFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
+  const [warehouseFilter, setWarehouseFilter] = useState("all")
   const [dateFilters, setDateFilters] = useState<DateFilters>({})
   const [sortKey, setSortKey] = useState<SortKey | null>(null)
   const [sortDir, setSortDir] = useState<SortDir>("asc")
@@ -44,12 +45,19 @@ export function DispatchDashboard({ initialData }: DispatchDashboardProps) {
     )
   }, [initialData])
 
+  const warehouseOptions = useMemo(() => {
+    return [...new Set(initialData.map((c) => c.warehouse).filter(Boolean))].sort()
+  }, [initialData])
+
   const filteredData = useMemo(() => {
     return initialData.filter((container) => {
       if (supplierFilter !== "all" && container.supplier !== supplierFilter) {
         return false
       }
       if (statusFilter !== "all" && container.status !== statusFilter) {
+        return false
+      }
+      if (warehouseFilter !== "all" && container.warehouse !== warehouseFilter) {
         return false
       }
       if (!matchesAllDateFilters(dateFilters, (key) => container[key as DispatchDateKey])) {
@@ -66,7 +74,7 @@ export function DispatchDashboard({ initialData }: DispatchDashboardProps) {
       }
       return true
     })
-  }, [initialData, supplierFilter, statusFilter, search, dateFilters])
+  }, [initialData, supplierFilter, statusFilter, warehouseFilter, search, dateFilters])
 
   const sortedData = useMemo(() => {
     if (!sortKey) return filteredData
@@ -77,8 +85,10 @@ export function DispatchDashboard({ initialData }: DispatchDashboardProps) {
         cmp = a.supplier.localeCompare(b.supplier)
       } else if (sortKey === "status") {
         cmp = getStatusStep(a.status) - getStatusStep(b.status)
+      } else if (sortKey === "warehouse") {
+        cmp = a.warehouse.localeCompare(b.warehouse)
       } else {
-        // atd / ata date columns: empty dates sort last.
+        // atd / ata / lfd / planned date columns: empty dates sort last.
         const av = a[sortKey] ? new Date(a[sortKey] as string).getTime() : Number.POSITIVE_INFINITY
         const bv = b[sortKey] ? new Date(b[sortKey] as string).getTime() : Number.POSITIVE_INFINITY
         cmp = av - bv
@@ -118,8 +128,11 @@ export function DispatchDashboard({ initialData }: DispatchDashboardProps) {
         onSupplierFilterChange={setSupplierFilter}
         statusFilter={statusFilter}
         onStatusFilterChange={setStatusFilter}
+        warehouseFilter={warehouseFilter}
+        onWarehouseFilterChange={setWarehouseFilter}
         supplierOptions={supplierOptions}
         statusOptions={statusOptions}
+        warehouseOptions={warehouseOptions}
         dateFields={DISPATCH_DATE_FIELDS}
         dateFilters={dateFilters}
         onDateFiltersApply={setDateFilters}

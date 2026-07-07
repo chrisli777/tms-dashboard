@@ -22,8 +22,11 @@ interface DispatchFilterBarProps {
   onSupplierFilterChange: (value: string) => void
   statusFilter: string
   onStatusFilterChange: (value: string) => void
+  warehouseFilter: string
+  onWarehouseFilterChange: (value: string) => void
   supplierOptions: string[]
   statusOptions: string[]
+  warehouseOptions: string[]
   dateFields: DateFilterField[]
   dateFilters: DateFilters
   onDateFiltersApply: (value: DateFilters) => void
@@ -37,8 +40,11 @@ export function DispatchFilterBar({
   onSupplierFilterChange,
   statusFilter,
   onStatusFilterChange,
+  warehouseFilter,
+  onWarehouseFilterChange,
   supplierOptions,
   statusOptions,
+  warehouseOptions,
   dateFields,
   dateFilters,
   onDateFiltersApply,
@@ -82,6 +88,20 @@ export function DispatchFilterBar({
             {statusOptions.map((status) => (
               <SelectItem key={status} value={status}>
                 {status}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={warehouseFilter} onValueChange={onWarehouseFilterChange}>
+          <SelectTrigger className="w-[150px]">
+            <SelectValue placeholder="All Warehouses" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Warehouses</SelectItem>
+            {warehouseOptions.map((warehouse) => (
+              <SelectItem key={warehouse} value={warehouse}>
+                {warehouse}
               </SelectItem>
             ))}
           </SelectContent>

@@ -13,9 +13,18 @@ import {
 import { ChevronRight, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
 import { DispatchStatusSelect } from "./dispatch-status-select"
 import { DispatchDateCell } from "./dispatch-date-cell"
+import { DispatchAssignmentCell } from "./dispatch-assignment-cell"
+import { WAREHOUSE_OPTIONS, VENDOR_OPTIONS } from "@/lib/dispatch-options"
 import type { DispatchContainer } from "@/lib/dispatch-data"
 
-export type SortKey = "supplier" | "status" | "atd" | "ata" | "lfd" | "planned_pickup_date"
+export type SortKey =
+  | "supplier"
+  | "status"
+  | "atd"
+  | "ata"
+  | "lfd"
+  | "planned_pickup_date"
+  | "warehouse"
 export type SortDir = "asc" | "desc"
 
 interface DispatchTableProps {
@@ -95,13 +104,15 @@ export function DispatchTable({ data, sortKey, sortDir, onSort }: DispatchTableP
               dir={sortDir}
               onSort={onSort}
             />
+            <SortableHead label="WAREHOUSE" sortKey="warehouse" activeKey={sortKey} dir={sortDir} onSort={onSort} />
+            <TableHead>VENDOR</TableHead>
             <TableHead className="text-right">QTY</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {data.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={10} className="h-24 text-center text-muted-foreground">
+              <TableCell colSpan={12} className="h-24 text-center text-muted-foreground">
                 No containers found
               </TableCell>
             </TableRow>
@@ -163,6 +174,28 @@ export function DispatchTable({ data, sortKey, sortDir, onSort }: DispatchTableP
                     field="planned_pickup_date"
                     value={container.planned_pickup_date}
                     label="Planned Date"
+                  />
+                </TableCell>
+                <TableCell>
+                  <DispatchAssignmentCell
+                    container={container.container}
+                    bol={container.bol}
+                    field="warehouse"
+                    value={container.warehouse}
+                    options={WAREHOUSE_OPTIONS}
+                    placeholder="Warehouse"
+                    label="Warehouse"
+                  />
+                </TableCell>
+                <TableCell>
+                  <DispatchAssignmentCell
+                    container={container.container}
+                    bol={container.bol}
+                    field="vendor"
+                    value={container.vendor}
+                    options={VENDOR_OPTIONS}
+                    placeholder="Assign"
+                    label="Vendor"
                   />
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
