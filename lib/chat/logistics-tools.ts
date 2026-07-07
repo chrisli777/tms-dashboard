@@ -30,6 +30,45 @@ const tableEnum = z.enum(LOGISTICS_TABLES)
 const MAX_LIMIT = 200
 const DEFAULT_LIMIT = 50
 
+/**
+ * Columns the assistant is NOT allowed to read, filter, or sort by: all
+ * monetary/financial amounts and all weight fields. Matching is case-insensitive
+ * and by exact column name. These are stripped from every result row and any
+ * attempt to filter/order/select them is rejected, so the values never leave
+ * the database through the assistant.
+ */
+const BLOCKED_COLUMNS = new Set(
+  [
+    // Money / funding
+    "amount_usd",
+    "unit_price_usd",
+    "unit_price",
+    "total_amount",
+    "total_value",
+    "demurrage_amount",
+    "detention_amount",
+    "duty_amount",
+    // Weight
+    "gw_kg",
+    "gross_weight",
+    "net_weight",
+    "total_weight",
+  ].map((c) => c.toLowerCase()),
+)
+
+function isBlocked(column: string): boolean {
+  return BLOCKED_COLUMNS.has(column.trim().toLowerCase())
+}
+
+/** Remove blocked keys from a result row. */
+function stripBlocked<T extends Record<string, unknown>>(row: T): Partial<T> {
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(row)) {
+    if (!isBlocked(k)) out[k] = v
+  }
+  return out as Partial<T>
+}
+
 const filterSchema = z.object({
   column: z.string().describe("Column name to filter on."),
   operator: z
@@ -129,15 +168,48 @@ export const logisticsTools = {
         .describe(`Max rows to return (default ${DEFAULT_LIMIT}, max ${MAX_LIMIT}).`),
     }),
     execute: async ({ table, columns, filters, orderBy, ascending, limit }) => {
+      // Never expose money/weight fields, even if the model asks for them.
+      const blockedFilter = (filters ?? []).find((f) => isBlocked(f.column))
+      if (blockedFilter) {
+        return {
+          error: `Filtering by "${blockedFilter.column}" is not permitted. Financial amounts and weights are restricted.`,
+        }
+      }
+      if (orderBy && isBlocked(orderBy)) {
+        return {
+          error: `Sorting by "${orderBy}" is not permitted. Financial amounts and weights are restricted.`,
+        }
+      }
+      // Always select "*" from the DB so a mis-guessed column name from the
+      // model can't produce a query error. We do projection (and blocked-column
+      // stripping) in JS afterwards, which is safe and forgiving.
+      const requestedCols =
+        columns && columns.trim() && columns.trim() !== "*"
+          ? columns
+              .split(",")
+              .map((c) => c.trim())
+              .filter((c) => c && !isBlocked(c))
+          : null
+
       const supabase = createAdminClient()
-      let query = supabase.from(table).select(columns && columns.trim() ? columns : "*")
+      let query = supabase.from(table).select("*")
       query = applyFilters(query as unknown as FilterableQuery, filters) as unknown as typeof query
       if (orderBy) query = query.order(orderBy, { ascending: ascending ?? false })
       query = query.limit(Math.min(limit ?? DEFAULT_LIMIT, MAX_LIMIT))
 
       const { data, error } = await query
       if (error) return { error: error.message }
-      return { rowCount: data?.length ?? 0, rows: data ?? [] }
+      const rows = (data ?? []).map((r) => {
+        const stripped = stripBlocked(r as unknown as Record<string, unknown>)
+        if (!requestedCols || requestedCols.length === 0) return stripped
+        // Project to the requested (allowed) columns; ignore any that don't exist.
+        const projected: Record<string, unknown> = {}
+        for (const c of requestedCols) {
+          if (c in stripped) projected[c] = (stripped as Record<string, unknown>)[c]
+        }
+        return Object.keys(projected).length > 0 ? projected : stripped
+      })
+      return { rowCount: rows.length, rows }
     },
   }),
 
@@ -149,6 +221,12 @@ export const logisticsTools = {
       filters: z.array(filterSchema).nullable().describe("Optional filters, ANDed together."),
     }),
     execute: async ({ table, filters }) => {
+      const blockedFilter = (filters ?? []).find((f) => isBlocked(f.column))
+      if (blockedFilter) {
+        return {
+          error: `Filtering by "${blockedFilter.column}" is not permitted. Financial amounts and weights are restricted.`,
+        }
+      }
       const supabase = createAdminClient()
       let query = supabase.from(table).select("*", { count: "exact", head: true })
       query = applyFilters(query as unknown as FilterableQuery, filters) as unknown as typeof query
