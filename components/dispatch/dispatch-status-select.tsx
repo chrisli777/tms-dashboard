@@ -31,6 +31,15 @@ const DOT_CLASS: Record<string, string> = {
   Closed: "bg-slate-500",
 }
 
+// Matching text colors so each option in the dropdown is visually distinct.
+const TEXT_CLASS: Record<string, string> = {
+  Arrived: "text-emerald-700",
+  Cleared: "text-blue-700",
+  Available: "text-cyan-700",
+  Scheduled: "text-teal-700",
+  Closed: "text-slate-700",
+}
+
 /**
  * Inline dropdown to set a container's post-arrival dispatch stage. Persists
  * through the controlled write path, then refreshes so the new status is
@@ -79,7 +88,7 @@ export function DispatchStatusSelect({
           className="h-8 w-[140px] gap-2"
           aria-label={`Dispatch status for ${container}`}
         >
-          <span className="flex items-center gap-1.5">
+          <span className={`flex items-center gap-1.5 font-medium ${TEXT_CLASS[value] ?? "text-foreground"}`}>
             <span
               className={`inline-block size-1.5 rounded-full ${DOT_CLASS[value] ?? "bg-slate-400"}`}
             />
@@ -89,7 +98,14 @@ export function DispatchStatusSelect({
         <SelectContent>
           {DISPATCH_STATUS_OPTIONS.map((opt) => (
             <SelectItem key={opt} value={opt}>
-              {opt}
+              <span className="flex items-center gap-1.5">
+                <span
+                  className={`inline-block size-1.5 rounded-full ${DOT_CLASS[opt] ?? "bg-slate-400"}`}
+                />
+                <span className={`font-medium ${TEXT_CLASS[opt] ?? "text-foreground"}`}>
+                  {opt}
+                </span>
+              </span>
             </SelectItem>
           ))}
         </SelectContent>
