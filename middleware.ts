@@ -53,7 +53,11 @@ export async function middleware(request: NextRequest) {
     const isApi = pathname.startsWith("/api/")
 
     if (isApi) {
-      // Visitors may read (GET/HEAD) but never mutate.
+      // The AI assistant is read-only (it only queries data), so allow it even
+      // though it uses POST.
+      if (pathname === "/api/chat") return NextResponse.next()
+
+      // Otherwise visitors may read (GET/HEAD) but never mutate.
       const method = request.method.toUpperCase()
       if (method !== "GET" && method !== "HEAD") {
         return NextResponse.json({ error: "Read-only access" }, { status: 403 })

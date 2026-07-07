@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation"
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
 import { OneDriveStatus } from "@/components/onedrive-status"
+import { ChatWidget } from "@/components/chatbot/chat-widget"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
 import { useCanEdit } from "@/components/providers/role-provider"
@@ -79,6 +80,7 @@ export function SidebarLayout({
         )}
         <div className="flex flex-1 flex-col">{children}</div>
       </SidebarInset>
+      <ChatWidget />
     </SidebarProvider>
   )
 }
