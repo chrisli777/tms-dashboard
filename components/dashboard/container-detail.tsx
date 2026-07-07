@@ -27,7 +27,7 @@ export function ContainerDetail({ container }: ContainerDetailProps) {
   return (
     <div className="flex flex-1 flex-col gap-6 p-6">
       {/* Info bar */}
-      <div className="flex flex-wrap items-center gap-4 text-sm">
+      <div className="flex flex-wrap items-center gap-4 text-base">
         <Link
           href={`/bol/${encodeURIComponent(container.bol)}`}
           className="font-medium text-primary hover:underline"
@@ -48,12 +48,12 @@ export function ContainerDetail({ container }: ContainerDetailProps) {
       {/* Dispatch details */}
       <Card>
         <CardContent className="px-6 py-5">
-          <h2 className="mb-4 text-xs font-semibold tracking-wider text-muted-foreground">
+          <h2 className="mb-4 text-sm font-semibold tracking-wider text-muted-foreground">
             DISPATCH
           </h2>
           <div className="grid grid-cols-2 gap-x-6 gap-y-4 md:grid-cols-3 lg:grid-cols-5">
             <div className="flex flex-col gap-1.5">
-              <span className="text-[10px] font-semibold tracking-wider text-muted-foreground">
+              <span className="text-xs font-semibold tracking-wider text-muted-foreground">
                 STATUS
               </span>
               <DispatchStatusSelect
@@ -63,7 +63,7 @@ export function ContainerDetail({ container }: ContainerDetailProps) {
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <span className="text-[10px] font-semibold tracking-wider text-muted-foreground">
+              <span className="text-xs font-semibold tracking-wider text-muted-foreground">
                 WAREHOUSE
               </span>
               <DispatchAssignmentCell
@@ -77,7 +77,7 @@ export function ContainerDetail({ container }: ContainerDetailProps) {
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <span className="text-[10px] font-semibold tracking-wider text-muted-foreground">
+              <span className="text-xs font-semibold tracking-wider text-muted-foreground">
                 VENDOR
               </span>
               <DispatchAssignmentCell
@@ -91,7 +91,7 @@ export function ContainerDetail({ container }: ContainerDetailProps) {
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <span className="text-[10px] font-semibold tracking-wider text-muted-foreground">
+              <span className="text-xs font-semibold tracking-wider text-muted-foreground">
                 LFD
               </span>
               <DispatchDateCell
@@ -103,7 +103,7 @@ export function ContainerDetail({ container }: ContainerDetailProps) {
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <span className="text-[10px] font-semibold tracking-wider text-muted-foreground">
+              <span className="text-xs font-semibold tracking-wider text-muted-foreground">
                 PLANNED DATE
               </span>
               <DispatchDateCell
@@ -131,20 +131,20 @@ export function ContainerDetail({ container }: ContainerDetailProps) {
       <div className="grid gap-4 md:grid-cols-2">
         <Card className="border-primary/20 bg-primary/5 py-4">
           <CardContent className="px-4">
-            <div className="text-2xl font-bold tabular-nums text-primary">
+            <div className="text-3xl font-bold tabular-nums text-primary">
               {container.skuCount}
             </div>
-            <p className="text-xs font-semibold tracking-wider text-muted-foreground">
+            <p className="text-sm font-semibold tracking-wider text-muted-foreground">
               SKUs
             </p>
           </CardContent>
         </Card>
         <Card className="border-primary/20 bg-primary/5 py-4">
           <CardContent className="px-4">
-            <div className="text-2xl font-bold tabular-nums text-primary">
+            <div className="text-3xl font-bold tabular-nums text-primary">
               {container.totalQty.toLocaleString()}
             </div>
-            <p className="text-xs font-semibold tracking-wider text-muted-foreground">
+            <p className="text-sm font-semibold tracking-wider text-muted-foreground">
               TOTAL QTY
             </p>
           </CardContent>
@@ -155,11 +155,11 @@ export function ContainerDetail({ container }: ContainerDetailProps) {
       <Card>
         <CardContent className="p-0">
           <div className="border-b px-5 py-3.5">
-            <h2 className="text-sm font-semibold text-foreground">
+            <h2 className="text-base font-semibold text-foreground">
               Container Items ({container.skuCount} SKUs)
             </h2>
           </div>
-          <Table>
+          <Table className="text-base">
             <TableHeader>
               <TableRow className="hover:bg-transparent">
                 <TableHead>SKU</TableHead>

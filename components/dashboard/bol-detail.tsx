@@ -35,7 +35,7 @@ export function BOLDetail({ summary }: BOLDetailProps) {
     <div className="flex flex-1 flex-col gap-6 p-6">
       {/* Info bar */}
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex flex-wrap items-center gap-4 text-sm">
+        <div className="flex flex-wrap items-center gap-4 text-base">
           <span className="font-medium text-primary">
             {summary.supplier}
           </span>
@@ -55,7 +55,7 @@ export function BOLDetail({ summary }: BOLDetailProps) {
       {/* Status Timeline */}
       <Card>
         <CardContent className="px-6 py-5">
-          <h2 className="mb-5 text-xs font-semibold tracking-wider text-muted-foreground">
+          <h2 className="mb-5 text-sm font-semibold tracking-wider text-muted-foreground">
             STATUS TIMELINE
           </h2>
           <div className="flex items-center">
@@ -71,7 +71,7 @@ export function BOLDetail({ summary }: BOLDetailProps) {
                 >
                   <div className="flex flex-col items-center gap-1.5">
                     <div
-                      className={`flex size-8 items-center justify-center rounded-full text-xs font-bold ${
+                      className={`flex size-9 items-center justify-center rounded-full text-sm font-bold ${
                         isCompleted
                           ? isActive
                             ? "bg-primary text-primary-foreground"
@@ -86,7 +86,7 @@ export function BOLDetail({ summary }: BOLDetailProps) {
                       )}
                     </div>
                     <span
-                      className={`whitespace-nowrap text-xs font-medium ${
+                      className={`whitespace-nowrap text-sm font-medium ${
                         isCompleted
                           ? "text-foreground"
                           : "text-muted-foreground"
@@ -97,7 +97,7 @@ export function BOLDetail({ summary }: BOLDetailProps) {
                   </div>
                   {!isLast && (
                     <div
-                      className={`mx-2 mt-[-18px] h-0.5 flex-1 rounded-full ${
+                      className={`mx-2 mt-[-20px] h-0.5 flex-1 rounded-full ${
                         step.step < currentStep
                           ? "bg-success"
                           : "bg-border"
@@ -115,7 +115,7 @@ export function BOLDetail({ summary }: BOLDetailProps) {
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardContent className="px-6 py-5">
-            <h2 className="mb-4 text-xs font-semibold tracking-wider text-muted-foreground">
+            <h2 className="mb-4 text-sm font-semibold tracking-wider text-muted-foreground">
               CONTAINER STATUS ({summary.containerCount} CONTAINERS)
             </h2>
             <ContainerStatusSummary containers={summary.containers} />
@@ -123,18 +123,18 @@ export function BOLDetail({ summary }: BOLDetailProps) {
         </Card>
         <Card>
           <CardContent className="px-6 py-5">
-            <h2 className="mb-4 text-xs font-semibold tracking-wider text-muted-foreground">
+            <h2 className="mb-4 text-sm font-semibold tracking-wider text-muted-foreground">
               SHIPMENT SUMMARY
             </h2>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="text-[10px] font-semibold tracking-wider text-muted-foreground">
+                <p className="text-xs font-semibold tracking-wider text-muted-foreground">
                   ETD / ATD
                 </p>
                 <TrackingDateCell state={etdCellState(summary)} kind="etd" />
               </div>
               <div>
-                <p className="text-[10px] font-semibold tracking-wider text-muted-foreground">
+                <p className="text-xs font-semibold tracking-wider text-muted-foreground">
                   ETA / ATA
                 </p>
                 <TrackingDateCell state={etaCellState(summary)} kind="eta" />
@@ -146,7 +146,7 @@ export function BOLDetail({ summary }: BOLDetailProps) {
 
       {/* Containers & SKUs */}
       <div>
-        <h2 className="mb-4 text-xs font-semibold tracking-wider text-muted-foreground">
+        <h2 className="mb-4 text-sm font-semibold tracking-wider text-muted-foreground">
           CONTAINERS & SKUS ({totalItems} ITEMS)
         </h2>
         <div className="flex flex-col gap-4">
@@ -160,7 +160,7 @@ export function BOLDetail({ summary }: BOLDetailProps) {
                     className="flex items-center gap-3 transition-opacity hover:opacity-80"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="size-4 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
-                    <span className="font-mono text-sm font-semibold text-foreground">
+                    <span className="font-mono text-base font-semibold text-foreground">
                       {ctr.container}
                     </span>
                     <Badge
@@ -172,11 +172,11 @@ export function BOLDetail({ summary }: BOLDetailProps) {
                     <StatusBadge status={ctr.status} />
                   </Link>
                   <div className="flex items-center gap-4">
-                    <div className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">
+                    <div className="hidden items-center gap-1.5 text-sm text-muted-foreground sm:flex">
                       <span className="font-semibold">ETD/ATD:</span>
                       <TrackingDateCell state={etdCellState(ctr)} kind="etd" inline />
                     </div>
-                    <div className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">
+                    <div className="hidden items-center gap-1.5 text-sm text-muted-foreground sm:flex">
                       <span className="font-semibold">ETA/ATA:</span>
                       <TrackingDateCell state={etaCellState(ctr)} kind="eta" inline />
                     </div>
@@ -186,7 +186,7 @@ export function BOLDetail({ summary }: BOLDetailProps) {
                       atd={ctr.atd}
                       ata={ctr.ata}
                     />
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-sm text-muted-foreground">
                       {ctr.items.length} {ctr.items.length === 1 ? "SKU" : "SKUs"}
                     </span>
                     <Link
@@ -199,7 +199,7 @@ export function BOLDetail({ summary }: BOLDetailProps) {
                   </div>
                 </div>
                 {/* Items table */}
-                <Table>
+                <Table className="text-base">
                   <TableHeader>
                     <TableRow className="hover:bg-transparent">
                       <TableHead>SKU</TableHead>
@@ -260,7 +260,7 @@ function ContainerStatusSummary({ containers }: { containers: { status: string }
       {activeStatuses.map(status => (
         <div key={status} className="flex items-center gap-2">
           <StatusBadge status={status} />
-          <span className="text-sm font-medium text-foreground">
+          <span className="text-base font-medium text-foreground">
             {statusCounts[status]}
           </span>
         </div>
