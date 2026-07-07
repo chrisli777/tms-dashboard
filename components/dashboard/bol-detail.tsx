@@ -23,13 +23,6 @@ interface BOLDetailProps {
   summary: BOLSummary
 }
 
-function formatCurrency(value: number) {
-  return `$${value.toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`
-}
-
 export function BOLDetail({ summary }: BOLDetailProps) {
   const currentStep = getStatusStep(summary.status)
 
@@ -55,9 +48,6 @@ export function BOLDetail({ summary }: BOLDetailProps) {
               <span className="flex items-center gap-1.5 text-muted-foreground">
                 ETA/ATA: <TrackingDateCell state={etaCellState(summary)} kind="eta" inline />
               </span>
-          <span className="font-semibold tabular-nums text-foreground">
-            {formatCurrency(summary.totalAmount)}
-          </span>
         </div>
         <StatusBadge status={summary.status} />
       </div>
@@ -136,7 +126,7 @@ export function BOLDetail({ summary }: BOLDetailProps) {
             <h2 className="mb-4 text-xs font-semibold tracking-wider text-muted-foreground">
               SHIPMENT SUMMARY
             </h2>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-[10px] font-semibold tracking-wider text-muted-foreground">
                   ETD / ATD
@@ -148,14 +138,6 @@ export function BOLDetail({ summary }: BOLDetailProps) {
                   ETA / ATA
                 </p>
                 <TrackingDateCell state={etaCellState(summary)} kind="eta" />
-              </div>
-              <div>
-                <p className="text-[10px] font-semibold tracking-wider text-muted-foreground">
-                  TOTAL VALUE
-                </p>
-                <p className="text-sm font-semibold text-foreground">
-                  {formatCurrency(summary.totalAmount)}
-                </p>
               </div>
             </div>
           </CardContent>

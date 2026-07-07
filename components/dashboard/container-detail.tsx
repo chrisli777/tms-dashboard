@@ -27,81 +27,105 @@ export function ContainerDetail({ container }: ContainerDetailProps) {
   return (
     <div className="flex flex-1 flex-col gap-6 p-6">
       {/* Info bar */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex flex-wrap items-center gap-4 text-sm">
-          <Link
-            href={`/bol/${encodeURIComponent(container.bol)}`}
-            className="font-medium text-primary hover:underline"
-          >
-            BOL: {container.bol}
-          </Link>
-          <span className="text-muted-foreground">{container.supplier}</span>
-          <span className="flex items-center gap-1.5 text-muted-foreground">
-            <span className="font-semibold">ETD/ATD:</span>
-            <TrackingDateCell state={etdCellState(container)} kind="etd" inline />
-          </span>
-          <span className="flex items-center gap-1.5 text-muted-foreground">
-            <span className="font-semibold">ETA/ATA:</span>
-            <TrackingDateCell state={etaCellState(container)} kind="eta" inline />
-          </span>
-          <DispatchStatusSelect
-            container={container.container}
-            bol={container.bol}
-            status={container.status}
-          />
-          <ManualTrackingEditor
-            container={container.container}
-            bol={container.bol}
-            atd={container.atd}
-            ata={container.ata}
-            label="Edit dates"
-          />
-          <span className="flex items-center gap-1.5 text-muted-foreground">
-            <span className="font-semibold">Warehouse:</span>
-            <DispatchAssignmentCell
-              container={container.container}
-              bol={container.bol}
-              field="warehouse"
-              value={container.warehouse}
-              options={WAREHOUSE_OPTIONS}
-              placeholder="Warehouse"
-              label="Warehouse"
-            />
-          </span>
-          <span className="flex items-center gap-1.5 text-muted-foreground">
-            <span className="font-semibold">Vendor:</span>
-            <DispatchAssignmentCell
-              container={container.container}
-              bol={container.bol}
-              field="vendor"
-              value={container.vendor}
-              options={VENDOR_OPTIONS}
-              placeholder="Assign"
-              label="Vendor"
-            />
-          </span>
-          <span className="flex items-center gap-1.5 text-muted-foreground">
-            <span className="font-semibold">LFD:</span>
-            <DispatchDateCell
-              container={container.container}
-              bol={container.bol}
-              field="lfd"
-              value={container.lfd}
-              label="LFD"
-            />
-          </span>
-          <span className="flex items-center gap-1.5 text-muted-foreground">
-            <span className="font-semibold">Planned Date:</span>
-            <DispatchDateCell
-              container={container.container}
-              bol={container.bol}
-              field="planned_pickup_date"
-              value={container.planned_pickup_date}
-              label="Planned Date"
-            />
-          </span>
-        </div>
+      <div className="flex flex-wrap items-center gap-4 text-sm">
+        <Link
+          href={`/bol/${encodeURIComponent(container.bol)}`}
+          className="font-medium text-primary hover:underline"
+        >
+          BOL: {container.bol}
+        </Link>
+        <span className="text-muted-foreground">{container.supplier}</span>
+        <span className="flex items-center gap-1.5 text-muted-foreground">
+          <span className="font-semibold">ETD/ATD:</span>
+          <TrackingDateCell state={etdCellState(container)} kind="etd" inline />
+        </span>
+        <span className="flex items-center gap-1.5 text-muted-foreground">
+          <span className="font-semibold">ETA/ATA:</span>
+          <TrackingDateCell state={etaCellState(container)} kind="eta" inline />
+        </span>
       </div>
+
+      {/* Dispatch details */}
+      <Card>
+        <CardContent className="px-6 py-5">
+          <h2 className="mb-4 text-xs font-semibold tracking-wider text-muted-foreground">
+            DISPATCH
+          </h2>
+          <div className="grid grid-cols-2 gap-x-6 gap-y-4 md:grid-cols-3 lg:grid-cols-5">
+            <div className="flex flex-col gap-1.5">
+              <span className="text-[10px] font-semibold tracking-wider text-muted-foreground">
+                STATUS
+              </span>
+              <DispatchStatusSelect
+                container={container.container}
+                bol={container.bol}
+                status={container.status}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <span className="text-[10px] font-semibold tracking-wider text-muted-foreground">
+                WAREHOUSE
+              </span>
+              <DispatchAssignmentCell
+                container={container.container}
+                bol={container.bol}
+                field="warehouse"
+                value={container.warehouse}
+                options={WAREHOUSE_OPTIONS}
+                placeholder="Warehouse"
+                label="Warehouse"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <span className="text-[10px] font-semibold tracking-wider text-muted-foreground">
+                VENDOR
+              </span>
+              <DispatchAssignmentCell
+                container={container.container}
+                bol={container.bol}
+                field="vendor"
+                value={container.vendor}
+                options={VENDOR_OPTIONS}
+                placeholder="Assign"
+                label="Vendor"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <span className="text-[10px] font-semibold tracking-wider text-muted-foreground">
+                LFD
+              </span>
+              <DispatchDateCell
+                container={container.container}
+                bol={container.bol}
+                field="lfd"
+                value={container.lfd}
+                label="LFD"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <span className="text-[10px] font-semibold tracking-wider text-muted-foreground">
+                PLANNED DATE
+              </span>
+              <DispatchDateCell
+                container={container.container}
+                bol={container.bol}
+                field="planned_pickup_date"
+                value={container.planned_pickup_date}
+                label="Planned Date"
+              />
+            </div>
+          </div>
+          <div className="mt-4 border-t pt-4">
+            <ManualTrackingEditor
+              container={container.container}
+              bol={container.bol}
+              atd={container.atd}
+              ata={container.ata}
+              label="Edit dates"
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-2">
