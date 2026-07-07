@@ -19,22 +19,42 @@ async function sha256Hex(input: string): Promise<string> {
     .join("")
 }
 
-/** The token value stored in the session cookie for the configured creds. */
-export async function getExpectedSessionToken(): Promise<string | null> {
-  const username = process.env.APP_USERNAME
-  const password = process.env.APP_PASSWORD
-  if (!username || !password) return null
-  return sha256Hex(`${username}:${password}`)
+type Account = { username: string; password: string }
+
+/**
+ * The list of accounts allowed to sign in. The primary admin account comes
+ * from the APP_USERNAME / APP_PASSWORD environment variables; additional
+ * accounts (e.g. a read-only visitor) are defined here.
+ */
+function getAccounts(): Account[] {
+  const accounts: Account[] = []
+
+  const envUser = process.env.APP_USERNAME
+  const envPass = process.env.APP_PASSWORD
+  if (envUser && envPass) {
+    accounts.push({ username: envUser, password: envPass })
+  }
+
+  // Shared visitor account.
+  accounts.push({ username: "visitor", password: "whi0836" })
+
+  return accounts
 }
 
-/** Validate a submitted username/password against the configured credentials. */
+/** All valid session cookie tokens (one per allowed account). */
+export async function getValidSessionTokens(): Promise<string[]> {
+  const accounts = getAccounts()
+  return Promise.all(accounts.map((a) => sha256Hex(`${a.username}:${a.password}`)))
+}
+
+/** Validate a submitted username/password against the allowed accounts. */
 export async function verifyCredentials(
   username: string,
   password: string,
 ): Promise<string | null> {
-  const expectedUser = process.env.APP_USERNAME
-  const expectedPass = process.env.APP_PASSWORD
-  if (!expectedUser || !expectedPass) return null
-  if (username !== expectedUser || password !== expectedPass) return null
-  return sha256Hex(`${username}:${password}`)
+  const match = getAccounts().find(
+    (a) => a.username === username && a.password === password,
+  )
+  if (!match) return null
+  return sha256Hex(`${match.username}:${match.password}`)
 }
